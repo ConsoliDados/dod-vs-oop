@@ -3,7 +3,7 @@ id: FEAT-002
 slug: post-transaction
 container: 002-ledger-core
 mode: B
-status: planned
+status: in-review
 depends-on: [FEAT-001]
 blocks: [FEAT-003, FEAT-004, FEAT-005]
 ---
@@ -22,14 +22,14 @@ synchronous in-memory bus for `accounts` to consume in FEAT-003.
 
 ## Acceptance criteria
 
-- [ ] `POST /transactions` with `{ reference?, postings: [{ accountId, amount, direction }], metadata? }` returns 201 with the created transaction (REQ-006).
-- [ ] A transaction with 2+ postings whose **signed amounts sum to zero** (`Σ debits == Σ credits`) is accepted; an unbalanced one is rejected **422** (REQ-006).
-- [ ] All referenced accounts must **exist** and **share the posting's currency**; otherwise rejected (404 absent account / 422 currency mismatch) (REQ-006).
-- [ ] A transaction with fewer than 2 postings is rejected 422.
-- [ ] Once recorded, a posting is **never updated or deleted** (REQ-011) — no mutation API exists; corrections are via reversal (FEAT-004).
-- [ ] `TransactionAggregate` cannot be constructed in an invalid state — `TransactionValidator` throws `InvalidEntityError` on the first violation (ADR-0002).
-- [ ] Posting the transaction emits a `TransactionPosted` domain event carrying the per-account signed amounts (consumed by `accounts` in FEAT-003).
-- [ ] Unit tests co-located (`transaction.aggregate.spec.ts`, `transaction.validator.spec.ts`, posting); integration `tests/ledger/post-transaction.e2e.spec.ts` covering happy + unbalanced + currency-mismatch + missing-account.
+- [x] `POST /transactions` with `{ reference?, postings: [{ accountId, amount, direction }], metadata? }` returns 201 with the created transaction (REQ-006).
+- [x] A transaction with 2+ postings whose **signed amounts sum to zero** (`Σ debits == Σ credits`) is accepted; an unbalanced one is rejected **422** (REQ-006).
+- [x] All referenced accounts must **exist** and **share currency**; otherwise rejected (404 absent account / 422 single-currency invariant) (REQ-006).
+- [x] A transaction with fewer than 2 postings is rejected 422.
+- [x] Once recorded, a posting is **never updated or deleted** (REQ-011) — no mutation API exists; corrections are via reversal (FEAT-004).
+- [x] `TransactionAggregate` cannot be constructed in an invalid state — `TransactionValidator` throws `InvalidEntityError` on the first violation (ADR-0002).
+- [x] Posting the transaction emits a `TransactionPosted` domain event carrying the per-account signed amounts (consumed by `accounts` in FEAT-003).
+- [x] Unit tests co-located (`transaction.aggregate.spec.ts`, `transaction.validator.spec.ts`, `posting.entity.spec.ts`); integration `tests/ledger/post-transaction.e2e.spec.ts` covering happy + unbalanced + single-currency + missing-account + <2 postings.
 
 ## Scope
 
