@@ -4,6 +4,7 @@ import { TypeOrmModule } from '@nestjs/typeorm'
 import { AccountsModule } from './accounts/infrastructure/accounts.module'
 import { AppController } from './app.controller'
 import { AppService } from './app.service'
+import { LedgerModule } from './ledger/infrastructure/ledger.module'
 import { DomainExceptionFilter } from './shared/infrastructure/http/domain-exception.filter'
 import { SharedModule } from './shared/shared.module'
 
@@ -17,6 +18,7 @@ import { SharedModule } from './shared/shared.module'
     }),
     SharedModule,
     AccountsModule,
+    LedgerModule,
   ],
   controllers: [AppController],
   providers: [AppService, { provide: APP_FILTER, useClass: DomainExceptionFilter }],
