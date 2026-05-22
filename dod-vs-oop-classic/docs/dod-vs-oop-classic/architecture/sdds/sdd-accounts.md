@@ -1,0 +1,115 @@
+---
+id: SDD-001
+title: accounts
+status: draft
+date: 2026-05-21
+---
+
+# SDD-001 — accounts
+
+> Tactical design of the `accounts` bounded context. Companion to `sad.md` §3.
+> Verbose-canonical OOP style (Evans/Vernon), **throw-based** (ADR-0002), not the
+> template's `Result`/free-function default. Reflects the state after FEAT-001
+> (open-account); holds lifecycle and event-driven balance are later features.
+
+## 1. Bounded context / area
+
+Owns the account lifecycle: opening an account and reading it and its available
+balance (REQ-001/002/003). Lives in `src/accounts/` as a NestJS module
+(`domain/` → `application/` → `infrastructure/`). Depends only on `src/core/`
+(DDD building blocks) and `src/shared/` (`Identifier`, `Money`, `InMemoryEventBus`).
+It never imports another context's `domain/`; cross-context contact is via domain
+events on the synchronous in-memory bus (no Outbox — ADR-0003).
+
+## 2. Aggregates / domain types
+
+**`AccountAggregate`** (root) — fields:
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `id` | `Identifier` | UUID, from `src/shared` |
+| `ownerId` | `string` | non-empty |
+| `currency` | `Currency` | ISO-4217 subset; single-currency per account |
+| `status` | `AccountStatus` | `active \| frozen \| closed`; only `active` produced in FEAT-001 |
+| `availableBalance` | `Money` | integer minor units (cents); starts `0` |
+| `holdAmount` | `Money` | cents; starts `0`; non-negative |
+| `version` | `number` | optimistic-lock counter; non-negative integer |
+| `createdAt/updatedAt/deletedAt` | `Date` | base `Entity`; soft delete via `deletedAt` |
+
+Factories: `create(ownerId, currency)` (new account, emits `AccountOpenedEvent`)
+and `buildExisting(snapshot)` (rehydrate from a persisted row; re-validates).
+Both run `AccountValidator` in the constructor, so an invalid instance can never
+exist.
+
+Supporting types: `AccountStatus` (string union), `AccountSnapshot`
+(reconstruction shape), `AccountDto` (client representation; money as cents).
+
+**Balance model (ADR-0006, arriving FEAT-003/006):** the `availableBalance` field
+above is a recomputable **cache**, overwritten on each `TransactionPosted` and
+carrying a checkpoint marker of the last posting it reflects. The audit trail is a
+separate immutable VO **`BalanceSnapshot`** `{ accountId, asOf, balance: Money,
+throughSeq }`, persisted **append-only** — current balance = latest snapshot +
+Σ(postings after `throughSeq`). **Rule: the cache overwrites, the snapshot appends.**
+
+## 3. Use cases / operations
+
+Use cases are **framework-free plain classes** whose constructor takes ports
+(see §6, ADR-0005); `execute()` returns the response directly and failures
+propagate as **thrown** exceptions (ADR-0002), mapped to HTTP by
+`DomainExceptionFilter`.
+
+| Operation | Input | Output | Errors (thrown) |
+|-----------|-------|--------|-----------------|
+| `OpenAccountUseCase` | `{ ownerId, currency }` | `AccountDto` (201) | `InvalidEntityError` / `InvalidValueObjectError` → 422 |
+| `GetAccountUseCase` | `{ id }` | `AccountDto` (200) | `AccountNotFoundError` → 404 |
+| `GetBalanceUseCase` | `{ id }` | `{ availableBalance: number, currency }` (200) | `AccountNotFoundError` → 404 |
+
+HTTP surface (`AccountController`): `POST /accounts`, `GET /accounts/:id`,
+`GET /accounts/:id/balance`.
+
+## 4. Invariants
+
+1. `ownerId` is a non-empty string. *(test: `account.validator.spec.ts`, `account.aggregate.spec.ts`)*
+2. `status ∈ { active, frozen, closed }`. *(test: validator spec — unknown status throws)*
+3. `availableBalance` and `holdAmount` share the account's `currency`. *(enforced by validator)*
+4. `holdAmount` is non-negative; `version` is a non-negative integer. *(test: validator accumulation spec)*
+5. An invalid `AccountAggregate` cannot be constructed — the validator throws inside the constructor (ADR-0002). *(test: every negative aggregate spec)*
+6. A freshly opened account has zero balances, `active` status, version 0, and emits exactly one `AccountOpenedEvent`. *(test: aggregate create spec + e2e)*
+7. Money is whole minor units everywhere (no float); persisted as `bigint` cents (ADR-0004).
+
+## 5. Errors
+
+- Domain: `InvalidEntityError` (aggregate validation), `InvalidValueObjectError`
+  (e.g. unsupported currency via `Money`), `InvalidIdentifierError` — all
+  subclasses of `DomainError` → **422** with `{ code: 'VALIDATION_ERROR', message, fields[] }`.
+- Application: `AccountNotFoundError extends UseCaseError` (code `ACCOUNT_NOT_FOUND`)
+  → **404**. The filter's `*_NOT_FOUND` convention drives the status.
+
+> **Framework-agnostic application (ADR-0005)**: `domain/` + `application/` are
+> plain TypeScript. Use cases are plain classes whose constructor takes the ports
+> below; all NestJS wiring (Symbol tokens + providers) lives in
+> `infrastructure/provider/{usecases,repositories}/`, and the module in
+> `infrastructure/accounts.module.ts`. The infra layer is swappable (Elysia/Bun).
+
+- **Repository ports (segregated, playbook §5):** `CreateAccountRepository`
+  (`insert`), `GetAccountRepository` (`findById`, filters `deletedAt IS NULL`) —
+  interfaces in `application/repositories/`. Bound to TypeORM impls via Symbol
+  tokens in `infrastructure/provider/repositories/` (`useClass`).
+- **EventBus port:** `src/shared/application/event-bus.ts` (`EventBus`);
+  use cases depend on the port, never the impl.
+- **Persistence:** `AccountTypeOrmEntity` (table `accounts`) + bidirectional
+  `AccountTypeOrmMapper` (`toPersistence` / `toDomain`). Stack per ADR-0001
+  (TypeORM + better-sqlite3 `:memory:`).
+- **Events:** emits `AccountOpenedEvent` via the `EventBus` port (impl
+  `InMemoryEventBus` in `src/shared/infrastructure`); no subscribers yet.
+- **HTTP:** `AccountController` (injects use cases via `@Inject(<TOKEN>)`) +
+  `OpenAccountRequest` DTO (no class-validator; domain is the validation authority).
+
+## 7. Open items
+
+- Holds lifecycle (REQ-004/005) — deferred to a later accounts-deepening epic;
+  `holdAmount` exists but no place/release endpoints.
+- Event-driven `availableBalance` cache overwrite + checkpoint advance on `TransactionPosted` (FEAT-003, ADR-0006).
+- `BalanceSnapshot` VO + `ConsolidateAccountBalance` domain service (FEAT-006, ADR-0006). Checkpoint key (`throughSeq`) finalized with FEAT-002's `Posting`. Cold/archive tiering forward-looking.
+- Boundary DTO validation via `class-validator` — deferred (not a dependency yet);
+  noted in `src/accounts/AGENTS.md`.

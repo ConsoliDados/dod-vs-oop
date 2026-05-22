@@ -1,0 +1,29 @@
+# dependencies
+**/node_modules/
+
+# build artifacts
+**/dist/
+**/build/
+**/coverage/
+*.tsbuildinfo
+**/*.tsbuildinfo
+
+# logs / debug
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+
+# env
+.env
+.env.*
+!.env.example
+
+# OS / editor
+.DS_Store
+Thumbs.db
+
+# Obsidian per-user state (vault config is committed; transient state is not)
+**/.obsidian/workspace.json
+**/.obsidian/workspace-mobile.json
+**/.obsidian/cache
