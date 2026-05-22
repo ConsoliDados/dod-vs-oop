@@ -4,6 +4,9 @@
   "description": "DDD verbose-canonical foil for DOD comparative study",
   "private": true,
   "license": "MIT",
+  "pnpm": {
+    "onlyBuiltDependencies": ["better-sqlite3"]
+  },
   "scripts": {
     "build": "nest build",
     "start": "nest start",
