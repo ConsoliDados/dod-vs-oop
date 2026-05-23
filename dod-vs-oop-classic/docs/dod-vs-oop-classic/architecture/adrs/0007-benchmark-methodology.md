@@ -1,6 +1,6 @@
 # ADR-0007 — Benchmark methodology: 2×2 matrix on a resource-constrained topology
 
-- **Status:** Accepted (one open item: the load-generator tool)
+- **Status:** Accepted
 - **Date:** 2026-05-22
 - **Phase / Sprint:** EPIC-002 (decided during FEAT-002 review); harness built later (BENCHMARKS.md phase)
 
@@ -35,6 +35,8 @@ Decomposition by comparing cells: **1↔2** = weight of DB I/O; **1↔3** (or **
 
 **Persistence portability:** the classic stack uses **TypeORM** (multi-dialect). The modern stack (Elysia, both sides in benches 3 & 4) uses **Drizzle** with an **env-var flag** selecting `pg-core` vs `sqlite-core` at runtime — a verbose dual-dialect schema, accepted as the cost of portability. `sqlite :memory:` also remains the integration/e2e **test** database, always, independent of the benchmarks.
 
+**Load generator: k6** (Go engine, JS-scripted scenarios) for all benchmarks — it fits the multi-step, stateful workloads (open account → post transaction → statement), gives reliable latency percentiles and pass/fail thresholds, and the off-stack runtime is fine since scenarios are authored in JS. (Considered and rejected: Gatling — Kotlin/JVM, off-stack; autocannon — on-stack but thinner for complex scenarios; oha/bombardier — great for hammering a single endpoint, weak for stateful flows, may still complement for isolated CPU-bound endpoints.)
+
 **Fairness / no strawman:** the harness is **identical** for the pair compared in each benchmark (same workload, load tool, resource limits, seed, fixed clock). The **conformance gate** (SRS NFR-CORRECT-001 — byte-identical JSON for the same fixtures) must pass before any performance number counts.
 
 ## Alternatives considered
@@ -52,7 +54,6 @@ Decomposition by comparing cells: **1↔2** = weight of DB I/O; **1↔3** (or **
 
 ## Open items
 
-- **Load-generator tool — UNDECIDED (close next):** candidates are Gatling (Kotlin — likely out, off-stack), **k6**, **oha**, **bombardier**, **autocannon**. Pick one for all benchmarks for comparability.
 - Make the classic TypeORM entities portable Postgres↔sqlite (`datetime` / `simple-json` / `bigint` / `PrimaryGeneratedColumn` differ per dialect) — handle in the harness phase.
 - The dod side currently uses an in-memory `Map` repository — it needs real Drizzle persistence for the benchmarks.
 

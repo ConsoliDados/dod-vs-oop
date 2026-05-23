@@ -67,8 +67,8 @@ for the isolated/controlled numbers.
 The "test rig" wrapped around the apps (built in this phase):
 
 1. **Topology** — the docker-compose with the resource limits above (benches 1 & 3).
-2. **Load generator** — fires requests at rising concurrency; collects throughput (req/s),
-   latency p50/p99, error rate. *(tool: open — see below.)*
+2. **Load generator — k6** — JS-scripted scenarios fire requests at rising concurrency and
+   collect throughput (req/s), latency p50/p99, error rate, with pass/fail thresholds.
 3. **Workloads** — realistic request mixes, especially the CPU-bound paths (statement
    generation over ~10k postings, reconciliation ~50k×50k).
 4. **Seed / fixtures** — deterministic data + fixed clock for comparable, conformant runs.
@@ -81,7 +81,8 @@ The "test rig" wrapped around the apps (built in this phase):
 _TBD — built once both implementations exist. One table per benchmark: throughput,
 p50/p99 latency, error rate, plus the cross-cell decomposition._
 
-## Open items
+## Tooling
 
-- **Load-generator tool — undecided:** Gatling (Kotlin — likely out, off-stack), k6, oha,
-  bombardier, autocannon. One tool will be used across all benchmarks for comparability.
+- **Load generator: k6** — JS-scripted scenarios, used across all benchmarks for
+  comparability (fits the multi-step, stateful workloads; reliable percentiles + thresholds).
+  oha/bombardier may complement it for hammering isolated CPU-bound endpoints.
