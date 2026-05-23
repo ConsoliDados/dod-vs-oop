@@ -19,6 +19,7 @@ ADRs capture decisions that have lasting structural consequences. Short, dated, 
 | [0004](./0004-money-integer-minor-units.md) | Money as integer minor units (no Decimal library) | Accepted | EPIC-002 |
 | [0005](./0005-framework-agnostic-application-layer.md) | Framework-agnostic application layer (DI wiring in infrastructure) | Accepted | EPIC-002 |
 | [0006](./0006-balance-snapshot-and-consolidation.md) | Balance as immutable snapshots + consolidation domain service | Accepted | EPIC-002 |
+| [0007](./0007-benchmark-methodology.md) | Benchmark methodology: 2×2 matrix on a resource-constrained topology | Accepted | EPIC-002 |
 
 ## Template
 
