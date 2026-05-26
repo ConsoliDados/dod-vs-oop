@@ -101,7 +101,7 @@ Benchmark suite (after implementation):
 
 This repo follows my development playbook for human + AI agents collaborating on the same project:
 
-- **Vertical slice + RPA** (Research / Plan / Act) per feature
+- **Vertical slice + RPA** — *Research → Plan → Act* per feature (**not** Robotic Process Automation): a documentation-first agentic loop where the spec/ADR/design chain precedes any code — the opposite of ad-hoc "vibe coding"
 - **Bounded context = package** (workspaces); cross-context communication only via domain events
 - **Smart Constructors with Notification Pattern** instead of exceptions (DOD project only — the OOP project deliberately uses throw)
 - **`Result<T, E>` + external `match` helper** — never throws (DOD project only)
