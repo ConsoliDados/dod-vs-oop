@@ -78,6 +78,23 @@ DI tokens are `Symbol`s declared **next to their provider** in `infrastructure/p
 | Event | `<Aggregate><PastTense>Event` | `TransactionPostedEvent`, `AccountFrozenEvent` |
 | Repo interface | `<Verb><Entity>Repository` | `CreateAccountRepository` |
 
+## HTTP / API conventions
+
+**Not strict REST.** Resource URLs look REST-ish, but **aggregate behaviors are first-class, named endpoints** (DDD commands as routes), never forced into generic CRUD verbs.
+
+- **Resources / collections:**
+  - `GET /things` — list (paginated, filterable).
+  - `POST /things` — create.
+  - `GET /things/:id` — read one.
+- **Behaviors / state transitions** — the command name is in the **path**, the payload is **minimal** (only the command's inputs, not the whole resource):
+  - `PATCH /things/:id/<command>` (or `PUT`) — state transition: `/confirm`, `/cancel`, `/reschedule`, `/freeze`, `/close`.
+  - `POST /things/:id/<sub>` — create a sub-entity produced by a command: `/holds`, `/reversals`, `/statements`.
+  - `DELETE /things/:id/<sub>/:subId` — undo a sub-entity (e.g. release a hold).
+- Each behavior endpoint maps **1:1 to an aggregate method / use case**.
+- **Rationale:** pure REST forces rich domain behavior into awkward "PUT the whole resource" shapes; exposing the verb makes the API self-describing and aligns the transport with the domain's ubiquitous language.
+
+This study's surface already follows it: `POST /transactions` (create), `POST /transactions/:id/reversals` (reverse), `POST /accounts/:id/holds` + `DELETE /accounts/:id/holds/:holdId` (place/release), `POST /accounts/:id/statements`.
+
 ## Pattern: Aggregate Root
 
 ```ts

@@ -31,3 +31,4 @@ Use the Templater snippet `.obsidian/templates/sdd-template.md`. Sections:
 | ID | Area | Status |
 |----|------|--------|
 | [SDD-001](./sdd-accounts.md) | accounts | draft |
+| [SDD-002](./sdd-ledger.md) | ledger | draft |

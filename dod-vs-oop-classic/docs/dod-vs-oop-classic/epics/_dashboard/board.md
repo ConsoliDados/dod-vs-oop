@@ -6,15 +6,15 @@ kanban-plugin: board
 
 ## Planned
 
-- [ ] [[../002-ledger-core/README|002 — ledger core]]
+
 
 ## Active
 
-- [ ] [[../001-bootstrap|001 — bootstrap]]
+- [ ] [[../002-ledger-core/README|002 — ledger core]]
 
 ## Done
 
-
+- [x] [[../001-bootstrap|001 — bootstrap]]
 
 ## Parked
 
