@@ -128,6 +128,8 @@ How work flows from idea to release. The diagram is mode-A; modes B and C collap
 
 **Mode B/C collapse**: sprint planning becomes a section in the active epic's README; the "sprint" box disappears; features go straight from epic → RPA loop.
 
+> **RPA** here = **Research → Plan → Act**, the per-feature loop above — **not** Robotic Process Automation. It's a documentation-first agentic workflow: research the spec and prior art, plan the slice file-by-file, then act against a live checklist. The doc chain (SRS → SAD → ADR → SDD → epic → feature RPA) precedes any code — the opposite of ad-hoc "vibe coding".
+
 ---
 
 ## 3. Day 1 — joining this project
