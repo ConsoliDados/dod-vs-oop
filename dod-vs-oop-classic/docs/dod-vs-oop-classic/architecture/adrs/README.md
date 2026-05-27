@@ -20,6 +20,8 @@ ADRs capture decisions that have lasting structural consequences. Short, dated, 
 | [0005](./0005-framework-agnostic-application-layer.md) | Framework-agnostic application layer (DI wiring in infrastructure) | Accepted | EPIC-002 |
 | [0006](./0006-balance-snapshot-and-consolidation.md) | Balance as immutable snapshots + consolidation domain service | Accepted | EPIC-002 |
 | [0007](./0007-benchmark-methodology.md) | Benchmark methodology: 2×2 matrix on a resource-constrained topology | Accepted | EPIC-002 |
+| [0008](./0008-transaction-posted-carries-sequence.md) | `TransactionPosted` carries the posting `sequence` per entry | Accepted | EPIC-002 (FEAT-003) |
+| [0009](./0009-distribution-boundary-messaging.md) | Distribution boundary & messaging evolution (forward-looking) | Accepted (forward-looking) | EPIC-002 (FEAT-003) |
 
 ## Template
 
