@@ -1,7 +1,7 @@
 import { AggregateRoot } from '../../../core/entities/aggregate-root'
 import type { InvalidEntityError } from '../../../core/errors'
 import { type Currency, Identifier, Money } from '../../../shared/value-objects'
-import { type TransactionEntry, TransactionPostedEvent } from '../events/transaction-posted.event'
+import type { TransactionEntry } from '../events/transaction-posted.event'
 import { type PostingDirection, toSignedCents } from '../posting-direction'
 import { TransactionValidator } from '../validators/transaction.validator'
 import { Posting, type PostingSnapshot } from './posting.entity'
@@ -76,9 +76,8 @@ export class TransactionAggregate extends AggregateRoot<TransactionValidator, In
       now,
       now,
     )
-    transaction.addDomainEvent(
-      new TransactionPostedEvent(transaction.getId().getValue(), now, transaction.toEntries()),
-    )
+    // `TransactionPosted` is built & published by the use case from the persisted
+    // postings (it needs each posting's `sequence`, assigned at persistence; ADR-0008).
     return transaction
   }
 
@@ -120,13 +119,24 @@ export class TransactionAggregate extends AggregateRoot<TransactionValidator, In
     return first.getAmount().getCurrency()
   }
 
-  /** Plain-data per-account effects for the `TransactionPosted` event payload. */
+  /**
+   * Plain-data per-account effects for the `TransactionPosted` payload — including
+   * each posting's `sequence` (ADR-0008). Call **after persistence**: the sequence is
+   * assigned at insert, so an unpersisted posting throws here.
+   */
   public toEntries(): TransactionEntry[] {
-    return this.postings.map((p) => ({
-      accountId: p.getAccountId().getValue(),
-      amountCents: p.getSignedCents(),
-      currency: p.getAmount().getCurrency(),
-    }))
+    return this.postings.map((p) => {
+      const sequence = p.getSequence()
+      if (sequence === undefined) {
+        throw new Error('toEntries() requires persisted postings (sequence not yet assigned)')
+      }
+      return {
+        accountId: p.getAccountId().getValue(),
+        amountCents: p.getSignedCents(),
+        currency: p.getAmount().getCurrency(),
+        sequence,
+      }
+    })
   }
 
   public override toString(): string {

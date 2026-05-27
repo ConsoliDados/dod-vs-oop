@@ -14,6 +14,7 @@ export class AccountTypeOrmMapper {
     entity.holdAmountCents = String(account.getHoldAmount().getCents())
     entity.status = account.getStatus()
     entity.version = account.getVersion()
+    entity.lastPostedSeq = account.getLastPostedSeq()
     entity.createdAt = account.getCreatedAt()
     entity.updatedAt = account.getUpdatedAt()
     entity.deletedAt = account.getDeletedAt() ?? null
@@ -29,6 +30,7 @@ export class AccountTypeOrmMapper {
       availableBalanceCents: Number(entity.availableBalanceCents),
       holdAmountCents: Number(entity.holdAmountCents),
       version: Number(entity.version),
+      lastPostedSeq: Number(entity.lastPostedSeq),
       // Coerce to Date defensively: the sqlite `datetime` driver may hydrate
       // these as strings, which the throw-based validator would reject.
       createdAt: new Date(entity.createdAt),

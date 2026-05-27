@@ -18,6 +18,7 @@ describe('AccountValidator', () => {
       availableBalanceCents: 0,
       holdAmountCents: 0,
       version: 0,
+      lastPostedSeq: 0,
       createdAt: new Date(),
       updatedAt: new Date(),
       ...overrides,

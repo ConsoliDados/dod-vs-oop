@@ -1,5 +1,5 @@
 import { AggregateRoot } from '../../../core/entities/aggregate-root'
-import type { InvalidEntityError } from '../../../core/errors'
+import { InvalidEntityError, InvalidPropertyError } from '../../../core/errors'
 import { type Currency, Identifier, Money } from '../../../shared/value-objects'
 import type { AccountStatus } from '../account-status'
 import { AccountOpenedEvent } from '../events/account-opened.event'
@@ -18,6 +18,7 @@ export interface AccountSnapshot {
   availableBalanceCents: number
   holdAmountCents: number
   version: number
+  lastPostedSeq: number
   createdAt: Date
   updatedAt: Date
   deletedAt?: Date
@@ -45,6 +46,7 @@ export class AccountAggregate extends AggregateRoot<AccountValidator, InvalidEnt
     private availableBalance: Money,
     private holdAmount: Money,
     private version: number,
+    private lastPostedSeq: number,
     createdAt: Date,
     updatedAt: Date,
     deletedAt?: Date,
@@ -65,6 +67,7 @@ export class AccountAggregate extends AggregateRoot<AccountValidator, InvalidEnt
       Money.zero(currency),
       Money.zero(currency),
       0,
+      0,
       now,
       now,
     )
@@ -82,6 +85,7 @@ export class AccountAggregate extends AggregateRoot<AccountValidator, InvalidEnt
       Money.fromCents(snapshot.availableBalanceCents, snapshot.currency),
       Money.fromCents(snapshot.holdAmountCents, snapshot.currency),
       snapshot.version,
+      snapshot.lastPostedSeq,
       snapshot.createdAt,
       snapshot.updatedAt,
       snapshot.deletedAt,
@@ -110,6 +114,47 @@ export class AccountAggregate extends AggregateRoot<AccountValidator, InvalidEnt
 
   public getVersion(): number {
     return this.version
+  }
+
+  public getLastPostedSeq(): number {
+    return this.lastPostedSeq
+  }
+
+  /**
+   * Folds a posted transaction's net effect for this account into the cached
+   * `availableBalance` and advances the checkpoint (ADR-0006), driven by the
+   * `TransactionPosted` handler (FEAT-003). `delta` is the signed sum of this
+   * account's postings (credit +, debit −); `throughSeq` is the highest posting
+   * `sequence` folded in and must advance monotonically. The cache is
+   * recomputable and never the sole authority (NFR-DATA-001).
+   */
+  public reflectPosting(delta: Money, throughSeq: number): void {
+    const errors: InvalidPropertyError[] = []
+    if (delta.getCurrency() !== this.currency) {
+      errors.push(
+        new InvalidPropertyError(
+          'availableBalance',
+          `Posting currency ${delta.getCurrency()} must match account currency ${this.currency}`,
+        ),
+      )
+    }
+    if (!Number.isInteger(throughSeq) || throughSeq <= this.lastPostedSeq) {
+      errors.push(
+        new InvalidPropertyError(
+          'lastPostedSeq',
+          `throughSeq must be an integer greater than the current checkpoint ${this.lastPostedSeq}, got ${throughSeq}`,
+        ),
+      )
+    }
+    if (errors.length > 0) {
+      throw InvalidEntityError.forAggregate('Account', errors)
+    }
+
+    this.availableBalance = this.availableBalance.add(delta)
+    this.lastPostedSeq = throughSeq
+    this.version += 1
+    this.updateUpdatedAt()
+    this.validator.validate()
   }
 
   public override toString(): string {

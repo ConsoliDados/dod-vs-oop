@@ -23,6 +23,7 @@ export class AccountValidator extends EntityValidator<AccountAggregate, InvalidE
     this.validateCurrencyConsistency()
     this.validateHoldAmount()
     this.validateVersion()
+    this.validateLastPostedSeq()
 
     if (this.hasErrors()) {
       throw InvalidEntityError.forAggregate('Account', this.getErrors())
@@ -73,6 +74,18 @@ export class AccountValidator extends EntityValidator<AccountAggregate, InvalidE
     const version = this.clazz.getVersion()
     if (!Number.isInteger(version) || version < 0) {
       this.addError(new InvalidPropertyError('version', 'Version must be a non-negative integer'))
+    }
+  }
+
+  private validateLastPostedSeq(): void {
+    const seq = this.clazz.getLastPostedSeq()
+    if (!Number.isInteger(seq) || seq < 0) {
+      this.addError(
+        new InvalidPropertyError(
+          'lastPostedSeq',
+          'Last posted sequence must be a non-negative integer',
+        ),
+      )
     }
   }
 }

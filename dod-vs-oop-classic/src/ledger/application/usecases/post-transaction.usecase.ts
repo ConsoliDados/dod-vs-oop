@@ -4,6 +4,7 @@ import {
   type PostingInput,
   TransactionAggregate,
 } from '../../domain/entities/transaction.aggregate'
+import { TransactionPostedEvent } from '../../domain/events/transaction-posted.event'
 import type { PostingDirection } from '../../domain/posting-direction'
 import { TransactionAccountNotFoundError } from '../errors/transaction-account-not-found.error'
 import {
@@ -73,7 +74,15 @@ export class PostTransactionUseCase extends CommandUseCase<
     })
 
     const persisted = await this.createTransactionRepository.insert(transaction)
-    await this.eventBus.publishAll(transaction.pullDomainEvents())
+    // Build the event from the *persisted* postings — they carry the DB-assigned
+    // `sequence` the `accounts` checkpoint needs (ADR-0008).
+    await this.eventBus.publishAll([
+      new TransactionPostedEvent(
+        persisted.getId().getValue(),
+        persisted.getPostedAt(),
+        persisted.toEntries(),
+      ),
+    ])
     return TransactionUseCaseMapper.toDto(persisted)
   }
 }

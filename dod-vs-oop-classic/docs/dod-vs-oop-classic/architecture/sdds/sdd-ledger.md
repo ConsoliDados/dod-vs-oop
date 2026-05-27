@@ -27,7 +27,9 @@ their immutable postings (REQ-006, REQ-011). Lives in `src/ledger/`
 
 **`TransactionAggregate`** (root) — `reference?`, `postings: Posting[]`,
 `metadata`, `postedAt`, plus base id/timestamps. Factories `create(input)`
-(builds postings, validates, emits `TransactionPosted`) and `buildExisting`.
+(builds postings, validates) and `buildExisting`. `TransactionPosted` is built &
+published by `PostTransactionUseCase` from the **persisted** postings (it needs
+each posting's `sequence`; ADR-0008), not emitted on `create`.
 
 **`Posting`** (entity inside the transaction) — `accountId: Identifier`,
 `amount: Money` (**signed**: credit +, debit −), `postedAt`, `sequence?`
@@ -35,7 +37,8 @@ their immutable postings (REQ-006, REQ-011). Lives in `src/ledger/`
 `getDirection()` (derived from sign).
 
 Supporting: `PostingDirection` (`debit | credit`); `TransactionEntry` (event
-payload row); `TransactionDto` / `PostingDto` (client shapes, signed cents).
+payload row `{ accountId, amountCents, currency, sequence }`, ADR-0008);
+`TransactionDto` / `PostingDto` (client shapes, signed cents).
 
 **Balance model link (ADR-0006):** the posting `sequence` *is* the `throughSeq`
 checkpoint key — current balance = latest snapshot + Σ(postings with `sequence`
@@ -73,12 +76,12 @@ HTTP (`TransactionController`): `POST /transactions` (SRS input `{ accountId, am
 - **`AccountLookup` port** (`application/ports/`) — cross-context read; returns the local `AccountView { id, currency }`. Implemented by `AccountLookupTypeOrm` (ACL) reading the `accounts` table read-only — the single place ledger infra touches the accounts persistence entity.
 - **`CreateTransactionRepository` port** (segregated) — atomic insert of the transaction + postings (one `DataSource.transaction`); returns the rehydrated aggregate with DB-assigned `sequence`. Bound via Symbol token in `infrastructure/provider/repositories/`.
 - **Persistence:** `TransactionTypeOrmEntity` (`transactions`) + `PostingTypeOrmEntity` (`postings`, `sequence` PK = monotonic order, signed `amountCents bigint`) + bidirectional `TransactionTypeOrmMapper`. Stack per ADR-0001.
-- **Events:** emits `TransactionPostedEvent` (plain-data `entries`) via the `EventBus` port.
+- **Events:** publishes `TransactionPostedEvent` (plain-data `entries` `{ accountId, amountCents, currency, sequence }`, ADR-0008) via the `EventBus` port — built by `PostTransactionUseCase` from the **persisted** postings, so each entry carries its DB `sequence`.
 - **HTTP:** `TransactionController` (`POST /transactions`); `PostTransactionRequest` DTO (no class-validator).
 
 ## 7. Open items
 
-- Reflect balance on `accounts` via the `OnTransactionPosted` handler (FEAT-003).
+- ✅ Reflect balance on `accounts` via the `OnTransactionPostedHandler` (FEAT-003, done) — `accounts` subscribes to `TransactionPosted`; ADR-0008 added `sequence` to the payload so the consumer needn't read ledger tables.
 - Reverse a transaction — `POST /transactions/:id/reversals` (FEAT-004, REQ-007); mirror postings, original never mutated.
 - List postings — `GET /accounts/:id/postings?from=&to=&limit=` (FEAT-005, REQ-008); a query repository over `postings`.
 - The **signed / credit-positive convention** is a candidate ADR once the cross-implementation conformance suite lands (the DOD side must match for byte-identical JSON, NFR-CORRECT-001).
