@@ -62,7 +62,7 @@ HTTP (`TransactionController`): `POST /transactions` (SRS input `{ accountId, am
 3. All postings of a transaction **share a single currency**. *(test: aggregate spec, e2e)*
 4. Each posting moves a **non-zero** amount. *(test: posting spec)*
 5. All referenced accounts **exist** and (by sharing currency, since each posting's currency is its account's) the transaction is single-currency. *(test: e2e — 404 + 422)*
-6. **Postings are immutable** (REQ-011): no update/delete path; corrections are reversals.
+6. **Postings are immutable** (REQ-011): no update/delete path; corrections are reversals. `TransactionAggregate` / `Posting` are therefore **deliberately behavior-light** — factories + getters, no state mutators — which is the domain rule, **not** an anemic-domain smell (contrast `AccountAggregate`, whose mutable cache/status legitimately carry behavior like `reflectPosting`, `freeze`/`close`). Documented inline on the classes.
 7. An invalid transaction/posting **cannot be constructed** — validators throw in the constructor (ADR-0002).
 8. Posting amounts are whole minor units, signed, `bigint` cents (ADR-0004).
 
