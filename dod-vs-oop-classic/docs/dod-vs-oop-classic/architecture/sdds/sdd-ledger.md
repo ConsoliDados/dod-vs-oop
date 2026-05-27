@@ -51,7 +51,7 @@ Framework-free plain classes; throw-based (ADR-0002); NestJS wiring in
 
 | Operation | Input | Output | Errors (thrown) |
 |-----------|-------|--------|-----------------|
-| `PostTransactionUseCase` | `{ reference?, metadata?, postings: [{ accountId, amountCents, direction }] }` | `TransactionDto` (201) | `TransactionAccountNotFoundError` → 404; `InvalidEntityError` (unbalanced / <2 postings / multi-currency) → 422 |
+| `PostTransactionUseCase` | `{ reference?, metadata?, postings: [{ accountId, amountCents, direction }] }` | `TransactionDto` (201) | `TransactionAccountNotFoundError` → 404; `InvalidEntityError` (unbalanced / <2 postings / multi-currency) → 422; a non-`active` account → 422 (REQ-006, FEAT-007) |
 
 HTTP (`TransactionController`): `POST /transactions` (SRS input `{ accountId, amount, direction }`, converted to signed at the boundary).
 
@@ -73,7 +73,7 @@ HTTP (`TransactionController`): `POST /transactions` (SRS input `{ accountId, am
 
 ## 6. Ports / external dependencies
 
-- **`AccountLookup` port** (`application/ports/`) — cross-context read; returns the local `AccountView { id, currency }`. Implemented by `AccountLookupTypeOrm` (ACL) reading the `accounts` table read-only — the single place ledger infra touches the accounts persistence entity.
+- **`AccountLookup` port** (`application/ports/`) — cross-context read; returns the local `AccountView { id, currency, status }` (FEAT-007 adds `status`). Implemented by `AccountLookupTypeOrm` (ACL) reading the `accounts` table read-only — the single place ledger infra touches the accounts persistence entity. `PostTransactionUseCase` uses `status` to reject (422) a posting to a non-`active` account (REQ-006).
 - **`CreateTransactionRepository` port** (segregated) — atomic insert of the transaction + postings (one `DataSource.transaction`); returns the rehydrated aggregate with DB-assigned `sequence`. Bound via Symbol token in `infrastructure/provider/repositories/`.
 - **Persistence:** `TransactionTypeOrmEntity` (`transactions`) + `PostingTypeOrmEntity` (`postings`, `sequence` PK = monotonic order, signed `amountCents bigint`) + bidirectional `TransactionTypeOrmMapper`. Stack per ADR-0001.
 - **Events:** publishes `TransactionPostedEvent` (plain-data `entries` `{ accountId, amountCents, currency, sequence }`, ADR-0008) via the `EventBus` port — built by `PostTransactionUseCase` from the **persisted** postings, so each entry carries its DB `sequence`.

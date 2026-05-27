@@ -14,7 +14,7 @@ The domain is chosen for this study because it naturally produces **large, appen
 
 ### 2.1 In scope
 
-- Account lifecycle: open an account, read it, read its current balance, place and release holds.
+- Account lifecycle: open an account, read it, read its current balance, place and release holds, **freeze / reactivate**, and **close** it.
 - Double-entry transaction posting: post a balanced transaction across two or more accounts; reverse a transaction.
 - Posting history: list an account's postings within a time window (paginated).
 - Statement generation: produce a period statement for an account (opening balance, closing balance, postings, category summary).
@@ -37,14 +37,16 @@ The domain is chosen for this study because it naturally produces **large, appen
 | REQ-003 | Read an account's current available balance | must | `GET /accounts/:id/balance` returns `availableBalance = Σ(posted postings) − holdAmount` |
 | REQ-004 | Place a hold on an account | should | `POST /accounts/:id/holds` reduces available balance by the held amount; rejects if insufficient available balance |
 | REQ-005 | Release a previously placed hold | should | `DELETE /accounts/:id/holds/:holdId` restores the held amount to available balance |
-| REQ-006 | Post a double-entry transaction | must | `POST /transactions` accepts 2+ postings; rejects (422) unless `Σ debits == Σ credits`; all referenced accounts must exist and share currency |
+| REQ-006 | Post a double-entry transaction | must | `POST /transactions` accepts 2+ postings; rejects (422) unless `Σ debits == Σ credits`; all referenced accounts must exist, share currency, and be **active** (not frozen/closed) |
 | REQ-007 | Reverse a posted transaction | must | `POST /transactions/:id/reversals` creates a new transaction with mirrored postings; the original is never mutated |
 | REQ-008 | List an account's postings in a window | must | `GET /accounts/:id/postings?from=&to=&limit=` returns postings ordered by `postedAt`, paginated |
 | REQ-009 | Generate a period statement | must | `POST /accounts/:id/statements` with `{from,to}` returns opening/closing balances, the postings in range, and a per-category summary |
 | REQ-010 | Reconcile a batch of external entries | must | `POST /reconciliation/batches` with external entries matches them against internal postings by `(accountId, amount, postedAt ± toleranceDays)`; returns matched / unmatched; batch closes only when `unmatched == 0`, else status `needs-review` |
 | REQ-011 | Posting immutability | must | Once a posting is recorded it is never updated or deleted; corrections happen via reversal (REQ-007) |
+| REQ-012 | Freeze / reactivate an account | should | `PATCH /accounts/:id/freeze` sets status `frozen`; `PATCH /accounts/:id/activate` returns it to `active`. A `frozen` account is rejected when posting (REQ-006, 422). An invalid transition (e.g. freeze a closed account) → 422 |
+| REQ-013 | Close an account | should | `POST /accounts/:id/closure` sets status `closed`, **only if** the balance recomputed from the posting history is zero (NFR-DATA-001 — the cached balance is not trusted for this irreversible action) and no holds are open; otherwise 422. A `closed` account is terminal (never reopened) and is rejected when posting (REQ-006) |
 
-Priorities: `must` (MVP), `should` (post-MVP), `could` (nice-to-have).
+Priorities: `must` (MVP), `should` (post-MVP), `could` (nice-to-have). REQ-012/013 are post-MVP enrichments pulled forward in the foil to exercise rich aggregate behavior + the first cross-aggregate **domain service** (see ADR-0010); the DOD side mirrors them (NFR-CORRECT-001).
 
 ## 4. Non-functional requirements
 
@@ -65,6 +67,9 @@ Priorities: `must` (MVP), `should` (post-MVP), `could` (nice-to-have).
 | POST | `/accounts` | Open account | 201 | 422 invalid input |
 | GET | `/accounts/:id` | Read account | 200 | 404 not found |
 | GET | `/accounts/:id/balance` | Read available balance | 200 | 404 |
+| PATCH | `/accounts/:id/freeze` | Freeze account | 200 | 404, 422 invalid transition |
+| PATCH | `/accounts/:id/activate` | Reactivate a frozen account | 200 | 404, 422 invalid transition |
+| POST | `/accounts/:id/closure` | Close account | 200 | 404, 422 non-zero balance / invalid transition |
 | POST | `/accounts/:id/holds` | Place hold | 201 | 404, 422 insufficient funds |
 | DELETE | `/accounts/:id/holds/:holdId` | Release hold | 204 | 404 |
 | POST | `/transactions` | Post double-entry transaction | 201 | 422 unbalanced / currency mismatch, 404 account absent |
@@ -98,6 +103,7 @@ Priorities: `must` (MVP), `should` (post-MVP), `could` (nice-to-have).
 - **Reversal** — a new transaction that mirrors a prior transaction's postings to undo its effect. The original is never mutated.
 - **Hold** — an amount reserved on an account, reducing available balance without a posting (e.g. a pre-authorization).
 - **Available balance** — `Σ(posted postings) − holdAmount`. What the account can actually use.
+- **Account status** — `active` (default), `frozen` (temporarily blocked from new postings), or `closed` (terminal: zero-balance, never reopened, rejects postings). Transitions are intention-revealing behaviors on the aggregate; closing is gated by a domain service that verifies a zero balance against the posting history (REQ-012/013, ADR-0010).
 - **Balance snapshot** — a consolidated balance for an account *as of* a point in time, retained as an immutable checkpoint. Current balance is derived as the latest snapshot plus the postings recorded after it.
 - **Consolidation** — the act of producing a new balance snapshot for an account from the postings since its previous snapshot. Periodic, not instantaneous; idempotent (re-running over the same postings yields the same snapshot).
 - **Statement** — a period view of an account: opening balance, closing balance, the postings in range, and a per-category summary.

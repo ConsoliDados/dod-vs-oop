@@ -66,9 +66,13 @@ propagate as **thrown** exceptions (ADR-0002), mapped to HTTP by
 | `OpenAccountUseCase` | `{ ownerId, currency }` | `AccountDto` (201) | `InvalidEntityError` / `InvalidValueObjectError` → 422 |
 | `GetAccountUseCase` | `{ id }` | `AccountDto` (200) | `AccountNotFoundError` → 404 |
 | `GetBalanceUseCase` | `{ id }` | `{ availableBalance: number, currency }` (200) | `AccountNotFoundError` → 404 |
+| `FreezeAccountUseCase` *(FEAT-007)* | `{ id }` | `AccountDto` (200) | `AccountNotFoundError` → 404; `InvalidEntityError` (illegal transition) → 422 |
+| `ActivateAccountUseCase` *(FEAT-007)* | `{ id }` | `AccountDto` (200) | `AccountNotFoundError` → 404; `InvalidEntityError` → 422 |
+| `CloseAccountUseCase` *(FEAT-007)* | `{ id }` | `AccountDto` (200) | `AccountNotFoundError` → 404; `AccountNotClosableError` (non-zero ledger balance) → 422; `InvalidEntityError` → 422 |
 
 HTTP surface (`AccountController`): `POST /accounts`, `GET /accounts/:id`,
-`GET /accounts/:id/balance`.
+`GET /accounts/:id/balance`, and *(FEAT-007)* `PATCH /accounts/:id/freeze`,
+`PATCH /accounts/:id/activate`, `POST /accounts/:id/closure`.
 
 **Event subscriber (FEAT-003):** `OnTransactionPostedHandler` reacts to `ledger`'s
 `TransactionPosted` on the synchronous in-memory bus — per affected account it folds
@@ -76,6 +80,13 @@ the net signed delta into `availableBalance` and advances `lastPostedSeq` via
 `reflectPosting`, persisting through `UpdateAccountRepository`. Framework-free
 (ADR-0005); registered with the bus in `accounts.module.ts` `onModuleInit`. Reads
 the inbound payload as a locally-declared contract, never importing `ledger/domain`.
+
+**Domain service (FEAT-007, ADR-0010):** status transitions (`freeze`/`activate`/
+`close`) are intention-revealing behaviors on the aggregate, each under a transition
+guard. Closing is gated by `CloseAccountService` — it requires a **zero balance
+recomputed from the ledger** (NFR-DATA-001), read via the `LedgerBalanceReader` ACL
+(accounts→ledger). The *decision* spans contexts (service); the *transition* is
+`account.close()` on the aggregate.
 
 ## 4. Invariants
 
@@ -108,6 +119,10 @@ the inbound payload as a locally-declared contract, never importing `ledger/doma
   Symbol tokens in `infrastructure/provider/repositories/` (`useClass`).
 - **EventBus port:** `src/shared/application/event-bus.ts` (`EventBus`);
   use cases depend on the port, never the impl.
+- **`LedgerBalanceReader` port** (`application/ports/`, *FEAT-007*) — cross-context read
+  (accounts→ledger ACL): the account's balance summed from the ledger posting history
+  (`Money`), used by `CloseAccountService` to verify a zero balance before close. Impl
+  `LedgerBalanceReaderTypeOrm` reads the ledger `postings` table read-only.
 - **Persistence:** `AccountTypeOrmEntity` (table `accounts`) + bidirectional
   `AccountTypeOrmMapper` (`toPersistence` / `toDomain`). Stack per ADR-0001
   (TypeORM + better-sqlite3 `:memory:`).
@@ -124,5 +139,6 @@ the inbound payload as a locally-declared contract, never importing `ledger/doma
   `holdAmount` exists but no place/release endpoints.
 - ✅ Event-driven `availableBalance` cache overwrite + `lastPostedSeq` checkpoint advance on `TransactionPosted` (FEAT-003, ADR-0006/0008) — done.
 - ✅ `BalanceSnapshot` VO **type** landed (FEAT-003). Its append-only persistence + the `ConsolidateAccountBalance` domain service remain FEAT-006 (ADR-0006); `throughSeq` = the global posting `sequence`. Cold/archive tiering forward-looking.
+- 🔜 Status lifecycle — `freeze`/`activate`/`close` behaviors + `CloseAccountService` (close-by-ledger-recompute via the `LedgerBalanceReader` ACL); `frozen`/`closed` reject postings. **Designed (FEAT-007, ADR-0010, SRS REQ-012/013), pending implementation**; pulled ahead of FEAT-004/005.
 - Boundary DTO validation via `class-validator` — deferred (not a dependency yet);
   noted in `src/accounts/AGENTS.md`.
