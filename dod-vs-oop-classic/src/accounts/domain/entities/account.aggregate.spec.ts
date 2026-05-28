@@ -67,6 +67,86 @@ describe('AccountAggregate', () => {
     })
   })
 
+  describe('status transitions (FEAT-007)', () => {
+    describe('freeze', () => {
+      it('moves active → frozen, bumps version', () => {
+        const account = AccountAggregate.create('owner-1', 'BRL')
+
+        account.freeze()
+
+        expect(account.getStatus()).toBe('frozen')
+        expect(account.getVersion()).toBe(1)
+      })
+
+      it('THROWS InvalidEntityError when freezing a frozen account', () => {
+        const account = AccountAggregate.create('owner-1', 'BRL')
+        account.freeze()
+
+        expect(() => account.freeze()).toThrow(InvalidEntityError)
+      })
+
+      it('THROWS InvalidEntityError when freezing a closed account', () => {
+        const account = AccountAggregate.create('owner-1', 'BRL')
+        account.close()
+
+        expect(() => account.freeze()).toThrow(InvalidEntityError)
+      })
+    })
+
+    describe('activate', () => {
+      it('moves frozen → active, bumps version', () => {
+        const account = AccountAggregate.create('owner-1', 'BRL')
+        account.freeze()
+
+        account.activate()
+
+        expect(account.getStatus()).toBe('active')
+        expect(account.getVersion()).toBe(2)
+      })
+
+      it('THROWS InvalidEntityError when activating an active account', () => {
+        const account = AccountAggregate.create('owner-1', 'BRL')
+
+        expect(() => account.activate()).toThrow(InvalidEntityError)
+      })
+
+      it('THROWS InvalidEntityError when activating a closed account (terminal)', () => {
+        const account = AccountAggregate.create('owner-1', 'BRL')
+        account.close()
+
+        expect(() => account.activate()).toThrow(InvalidEntityError)
+      })
+    })
+
+    describe('close', () => {
+      it('moves active → closed, bumps version', () => {
+        const account = AccountAggregate.create('owner-1', 'BRL')
+
+        account.close()
+
+        expect(account.getStatus()).toBe('closed')
+        expect(account.getVersion()).toBe(1)
+      })
+
+      it('moves frozen → closed, bumps version', () => {
+        const account = AccountAggregate.create('owner-1', 'BRL')
+        account.freeze()
+
+        account.close()
+
+        expect(account.getStatus()).toBe('closed')
+        expect(account.getVersion()).toBe(2)
+      })
+
+      it('THROWS InvalidEntityError when closing a closed account (terminal)', () => {
+        const account = AccountAggregate.create('owner-1', 'BRL')
+        account.close()
+
+        expect(() => account.close()).toThrow(InvalidEntityError)
+      })
+    })
+  })
+
   describe('reflectPosting', () => {
     it('applies a signed delta and advances the checkpoint, bumping version', () => {
       const account = AccountAggregate.create('owner-1', 'BRL')

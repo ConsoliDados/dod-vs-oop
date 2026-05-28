@@ -121,6 +121,64 @@ export class AccountAggregate extends AggregateRoot<AccountValidator, InvalidEnt
   }
 
   /**
+   * Transitions the account to `frozen` (REQ-012, ADR-0010). Legal only from
+   * `active` — any other source status throws `InvalidEntityError` (ADR-0002).
+   * Bumps `version` (optimistic lock) and `updatedAt`; re-validates.
+   */
+  public freeze(): void {
+    this.assertTransition(['active'], 'frozen')
+    this.status = 'frozen'
+    this.version += 1
+    this.updateUpdatedAt()
+    this.validator.validate()
+  }
+
+  /**
+   * Transitions the account back to `active` (REQ-012, ADR-0010). Legal only
+   * from `frozen` — any other source status throws `InvalidEntityError`.
+   */
+  public activate(): void {
+    this.assertTransition(['frozen'], 'active')
+    this.status = 'active'
+    this.version += 1
+    this.updateUpdatedAt()
+    this.validator.validate()
+  }
+
+  /**
+   * Transitions the account to `closed` (REQ-013, ADR-0010). Legal from
+   * `active` or `frozen`; `closed` is **terminal** — calling `close()` on an
+   * already-closed account throws `InvalidEntityError`. The *zero-balance*
+   * precondition is **not** enforced here — it spans `accounts` + `ledger` and
+   * lives in `CloseAccountService` (the use case feeds the recomputed balance
+   * from the `LedgerBalanceReader` ACL into the service, which then delegates
+   * the transition to this method).
+   */
+  public close(): void {
+    this.assertTransition(['active', 'frozen'], 'closed')
+    this.status = 'closed'
+    this.version += 1
+    this.updateUpdatedAt()
+    this.validator.validate()
+  }
+
+  /**
+   * Guards a status transition: throws `InvalidEntityError` if the current
+   * status is not in `from`. Kept private so legal transitions stay listed at
+   * each behavior site (`freeze`/`activate`/`close`) rather than in a table.
+   */
+  private assertTransition(from: AccountStatus[], to: AccountStatus): void {
+    if (!from.includes(this.status)) {
+      throw InvalidEntityError.forAggregate('Account', [
+        new InvalidPropertyError(
+          'status',
+          `Illegal transition: ${this.status} → ${to} (legal from: ${from.join(' | ')})`,
+        ),
+      ])
+    }
+  }
+
+  /**
    * Folds a posted transaction's net effect for this account into the cached
    * `availableBalance` and advances the checkpoint (ADR-0006), driven by the
    * `TransactionPosted` handler (FEAT-003). `delta` is the signed sum of this
