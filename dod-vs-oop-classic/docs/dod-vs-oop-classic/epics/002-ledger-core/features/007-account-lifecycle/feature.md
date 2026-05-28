@@ -3,7 +3,7 @@ id: FEAT-007
 slug: account-lifecycle
 container: 002-ledger-core
 mode: B
-status: in-review
+status: in-implementation
 depends-on: [FEAT-001, FEAT-003]
 blocks: []
 ---

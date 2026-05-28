@@ -51,7 +51,7 @@ Framework-free plain classes; throw-based (ADR-0002); NestJS wiring in
 
 | Operation | Input | Output | Errors (thrown) |
 |-----------|-------|--------|-----------------|
-| `PostTransactionUseCase` | `{ reference?, metadata?, postings: [{ accountId, amountCents, direction }] }` | `TransactionDto` (201) | `TransactionAccountNotFoundError` → 404; `InvalidEntityError` (unbalanced / <2 postings / multi-currency) → 422. **Planned (FEAT-007, not yet shipped):** reject a posting to a non-`active` account → 422 (REQ-006) — depends on the status-aware `AccountLookup` (§6) |
+| `PostTransactionUseCase` | `{ reference?, metadata?, postings: [{ accountId, amountCents, direction }] }` | `TransactionDto` (201) | `TransactionAccountNotFoundError` → 404; `InvalidEntityError` (unbalanced / <2 postings / multi-currency) → 422; `AccountNotActiveError` (referenced account is `frozen`/`closed`, FEAT-007) → 422 (REQ-006 *active*) |
 
 HTTP (`TransactionController`): `POST /transactions` (SRS input `{ accountId, amount, direction }`, converted to signed at the boundary).
 
@@ -70,10 +70,11 @@ HTTP (`TransactionController`): `POST /transactions` (SRS input `{ accountId, am
 
 - Domain: `InvalidEntityError` (aggregate + posting validation) → **422** `{ code: 'VALIDATION_ERROR', message, fields[] }`.
 - Application: `TransactionAccountNotFoundError extends UseCaseError` (code `ACCOUNT_NOT_FOUND`) → **404** via the filter's `*_NOT_FOUND` convention.
+- Application: `AccountNotActiveError extends UseCaseError` (code `ACCOUNT_NOT_ACTIVE`, FEAT-007) → **422**. Raised when `AccountLookup` reports a non-`active` referenced account (REQ-006 *active* precondition; ADR-0010).
 
 ## 6. Ports / external dependencies
 
-- **`AccountLookup` port** (`application/ports/`) — cross-context read; today returns the local `AccountView { id, currency }`. Implemented by `AccountLookupTypeOrm` (ACL) reading the `accounts` table read-only — the single place ledger infra touches the accounts persistence entity. **Planned (FEAT-007, not yet shipped):** extend `AccountView` with `status` so `PostTransactionUseCase` can reject (422) a posting to a non-`active` account (REQ-006).
+- **`AccountLookup` port** (`application/ports/`) — cross-context read; returns the local `AccountView { id, currency, status }` (FEAT-007 added `status`; the status union is mirrored locally as `AccountLookupStatus` — no `accounts/domain` import). Implemented by `AccountLookupTypeOrm` (ACL) reading the `accounts` table read-only — the single place ledger infra touches the accounts persistence entity. `PostTransactionUseCase` uses `status` to reject (422) a posting to a non-`active` account (REQ-006, ADR-0010).
 - **`CreateTransactionRepository` port** (segregated) — atomic insert of the transaction + postings (one `DataSource.transaction`); returns the rehydrated aggregate with DB-assigned `sequence`. Bound via Symbol token in `infrastructure/provider/repositories/`.
 - **Persistence:** `TransactionTypeOrmEntity` (`transactions`) + `PostingTypeOrmEntity` (`postings`, `sequence` PK = monotonic order, signed `amountCents bigint`) + bidirectional `TransactionTypeOrmMapper`. Stack per ADR-0001.
 - **Events:** publishes `TransactionPostedEvent` (plain-data `entries` `{ accountId, amountCents, currency, sequence }`, ADR-0008) via the `EventBus` port — built by `PostTransactionUseCase` from the **persisted** postings, so each entry carries its DB `sequence`.
