@@ -31,7 +31,7 @@ The cache is a recomputable optimization; the postings remain the source of trut
 - [ ] `availableBalance` stays in the account's `currency`; `version` bumps on each balance update (optimistic-lock counter).
 - [ ] The `TransactionPosted` event carries each posting's `sequence` (ADR-0008); the handler advances each account's checkpoint to the max `sequence` folded in for that account.
 - [ ] A thin immutable `BalanceSnapshot` VO `{ accountId, asOf, balance: Money, throughSeq }` exists with a throwing smart constructor (ADR-0002) and unit tests — **type only**; persistence + consolidation are FEAT-006.
-- [ ] Unit (co-located): the new `AccountAggregate` balance-reflection method — applies a signed delta, advances the checkpoint, rejects a currency mismatch and a non-monotonic checkpoint; `BalanceSnapshot` VO spec. Integration: `tests/accounts/reflect-balance.e2e.spec.ts` — open two accounts, `POST` a balanced transaction, assert one balance went up and the other down by the amount, both checkpoints advanced; an unrelated account untouched.
+- [ ] Unit (co-located): the new `AccountAggregate` balance-reflection method — applies a signed delta, advances the checkpoint, rejects a currency mismatch and a non-monotonic checkpoint; `BalanceSnapshot` VO spec. **Checkpoint monotonicity is covered at the unit level** — `lastPostedSeq` is internal state, not exposed over HTTP. Integration: `tests/accounts/reflect-balance.e2e.spec.ts` — open accounts, `POST` a balanced transaction, assert one balance went up and the other down by the amount, an unrelated account with a prior non-zero balance is untouched. Desync path: `tests/accounts/reflect-balance-desync.e2e.spec.ts` — when the cache update fails the producer still returns 201 (swallow-and-log).
 
 ## Scope
 

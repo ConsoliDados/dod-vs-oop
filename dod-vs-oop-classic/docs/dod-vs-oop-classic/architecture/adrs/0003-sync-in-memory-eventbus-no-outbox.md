@@ -30,7 +30,8 @@ We will use a **synchronous in-memory `EventBus`** with **no Outbox**. Concretel
 
 - **Positive**: minimal machinery; easy to follow; faithful to the production reference; the absence of an Outbox is itself a teaching point in the study ("here's what you give up").
 - **Negative**: cross-context consistency is coupled to the process — if a subscriber throws *after* the DB commit, the event is lost with no automatic recovery. Acceptable for a didactic foil; explicitly **not** acceptable for billing-critical production (which is why the DOD side uses an Outbox). This fragility is the point the comparison illustrates.
-- **Follow-up**: tests must cover the failure mode (handler throws → event lost) so the trade-off is demonstrated, not hidden.
+- **Refinement — swallow-and-log on the recomputable-cache path (FEAT-003).** The blanket rule above ("handler errors propagate") is **narrowed** for the cross-context cache update done by `OnTransactionPostedHandler` in `accounts`. The cached `availableBalance` is recomputable (NFR-DATA-001) and the immutable `BalanceSnapshot` trail (ADR-0006) is untouched by that path. Letting a cache-update failure (e.g. `OptimisticLockError`) propagate would fail `POST /transactions` (HTTP 500) and silently lose the *posting* — far worse than a transient desync. So this specific handler wraps each affected account in `try/catch`, **logs a warning** with the `accountId` + `cause`, and continues to the next account — never rethrowing. The desync is recoverable by recompute (FEAT-006 `ConsolidateAccountBalance`). A production deployment would back this with a retry queue / Outbox; here it's an explicit, narrow exception to the propagate rule, scoped to recomputable caches.
+- **Follow-up**: tests must cover the failure mode — both that the desync is *observable* under a swallow-and-log handler (`tests/accounts/reflect-balance-desync.e2e.spec.ts`) and that the trade-off is demonstrated, not hidden.
 
 ## References
 

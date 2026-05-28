@@ -81,6 +81,20 @@ the net signed delta into `availableBalance` and advances `lastPostedSeq` via
 (ADR-0005); registered with the bus in `accounts.module.ts` `onModuleInit`. Reads
 the inbound payload as a locally-declared contract, never importing `ledger/domain`.
 
+**Swallow-and-log on the recomputable-cache path** (refines ADR-0003 for FEAT-003).
+Each account is processed in its own `try/catch`; a failure
+(`OptimisticLockError`, absent account, infra blip) is **logged as a warning**
+with the `accountId` + `cause` via the `Logger` port, and the handler **continues
+to the next account** — it never rethrows to the producer. Rationale: the cached
+balance is recomputable (NFR-DATA-001) and the immutable `BalanceSnapshot`
+audit trail (ADR-0006) is untouched by this path, so letting a cache hiccup fail
+`POST /transactions` (HTTP 500) would silently lose the *posting* — strictly
+worse than a transient desync recoverable by recompute (FEAT-006). The
+`UpdateAccountRepository` impl raises a typed `OptimisticLockError extends
+DomainError` (greppable, structured) on a stale `version` guard. Tested
+explicitly in `tests/accounts/reflect-balance-desync.e2e.spec.ts`. A real
+production deployment would back this with a retry queue / Outbox.
+
 **Domain service (FEAT-007, ADR-0010):** status transitions (`freeze`/`activate`/
 `close`) are intention-revealing behaviors on the aggregate, each under a transition
 guard. Closing is gated by `CloseAccountService` — it requires a **zero balance
@@ -105,6 +119,10 @@ recomputed from the ledger** (NFR-DATA-001), read via the `LedgerBalanceReader` 
   subclasses of `DomainError` → **422** with `{ code: 'VALIDATION_ERROR', message, fields[] }`.
 - Application: `AccountNotFoundError extends UseCaseError` (code `ACCOUNT_NOT_FOUND`)
   → **404**. The filter's `*_NOT_FOUND` convention drives the status.
+- Repository: `OptimisticLockError extends DomainError` (FEAT-003) — raised by
+  `UpdateAccountRepository` impls when the prior-`version` guard matches zero
+  rows. **Caught inside the cross-context cache handler** (swallow-and-log; see
+  §3 / ADR-0003 refinement); never reaches the HTTP filter today.
 
 > **Framework-agnostic application (ADR-0005)**: `domain/` + `application/` are
 > plain TypeScript. Use cases are plain classes whose constructor takes the ports
@@ -119,6 +137,12 @@ recomputed from the ledger** (NFR-DATA-001), read via the `LedgerBalanceReader` 
   Symbol tokens in `infrastructure/provider/repositories/` (`useClass`).
 - **EventBus port:** `src/shared/application/event-bus.ts` (`EventBus`);
   use cases depend on the port, never the impl.
+- **Logger port** (`src/shared/application/logger.ts`, FEAT-003) — minimal
+  framework-agnostic `{ warn, error, info }` interface. Used by
+  `OnTransactionPostedHandler` to surface the swallow-and-log warning on a
+  failed cache update. Impl `ConsoleLogger` (wraps NestJS `Logger`) wired via
+  `LOGGER` token in `SharedModule` (`@Global`); tests override the provider
+  with a spy.
 - **`LedgerBalanceReader` port** (`application/ports/`, *FEAT-007*) — cross-context read
   (accounts→ledger ACL): the account's balance summed from the ledger posting history
   (`Money`), used by `CloseAccountService` to verify a zero balance before close. Impl

@@ -20,7 +20,7 @@ We must pick how `balance` is represented before FEAT-003 (which keeps balance i
 
 Two distinct representations with distinct rules — **the cache overwrites, the snapshot appends**:
 
-1. **Cached current balance on `AccountAggregate`** — the existing `availableBalance: Money` field plus a checkpoint marker of the last posting it reflects (a per-account posting sequence; exact key finalized with FEAT-002's `Posting`). It is **overwritten** incrementally on each `TransactionPosted` (FEAT-003). It is a denormalized optimization: fully recomputable, **never the sole source of truth** in an open period.
+1. **Cached current balance on `AccountAggregate`** — the existing `availableBalance: Money` field plus a checkpoint marker of the last posting it reflects (`lastPostedSeq` / `throughSeq` = the **global** posting `sequence`, finalized with FEAT-002's `Posting`; ADR-0008 carries it on `TransactionPosted` so the consumer needn't read ledger tables). It is **overwritten** incrementally on each `TransactionPosted` (FEAT-003). It is a denormalized optimization: fully recomputable, **never the sole source of truth** in an open period.
 
 2. **`BalanceSnapshot` — an immutable Value Object / read-model**: `{ accountId, asOf, balance: Money, throughSeq }`. **Append-only**: consolidation produces a *new* snapshot; prior snapshots are never mutated or deleted. The snapshot sequence is the retained, auditable balance history.
 
@@ -48,7 +48,7 @@ Two horizons (resolves the "derivable vs authoritative" tension):
 
 - **Positive**: O(1)-ish current read (snapshot + small delta); an immutable, auditable balance trail independent of the disposable cache; a clean cache story (recomputable, never authoritative alone); and a meaty, honest axis for the OOP-vs-DOD comparison — the fold-over-postings consolidation is precisely where the DOD side's SoA layout should shine.
 - **Negative**: two representations of "balance" must be kept coherent — the invariant is *cache is recomputable and never authoritative alone*; consolidation must be idempotent (`throughSeq` guards double-count). More moving parts than a single field.
-- **Follow-up**: FEAT-003 implements the incremental cache update + checkpoint marker; a follow-up feature implements `ConsolidateAccountBalance` + `BalanceSnapshot` persistence. The exact checkpoint key depends on FEAT-002's `Posting` shape.
+- **Follow-up**: FEAT-003 landed the incremental cache update + the `lastPostedSeq` checkpoint (key = global posting `sequence`, per ADR-0008); FEAT-006 implements `ConsolidateAccountBalance` + `BalanceSnapshot` persistence.
 - **Shared contract**: the snapshot representation and the "balance = snapshot + delta" semantics are part of the shared SRS, so the `dod-vs-oop-dod` side adopts the same model (NFR-CORRECT-001 byte-identical JSON).
 
 ## References

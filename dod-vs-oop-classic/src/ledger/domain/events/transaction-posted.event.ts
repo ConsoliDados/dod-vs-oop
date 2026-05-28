@@ -11,9 +11,12 @@ export interface TransactionEntry {
 }
 
 /**
- * Emitted when a transaction is posted (`TransactionAggregate.create`).
+ * Emitted when a transaction is posted.
  *
- * - **Built & published by**: `PostTransactionUseCase` from the persisted postings (carries `sequence`; ADR-0008).
+ * - **Built & published by**: `PostTransactionUseCase` **post-persistence** from
+ *   the persisted postings (each entry carries its DB-assigned `sequence`;
+ *   ADR-0008). It is **not** emitted from `TransactionAggregate.create()` — the
+ *   sequence is a DB fact and the aggregate doesn't have it before insert.
  * - **Consumers**: `accounts` folds `entries` into the cached available balance (FEAT-003).
  * - **Delivery**: synchronous in-memory EventBus, no Outbox (ADR-0003).
  *
