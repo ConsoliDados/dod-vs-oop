@@ -1,7 +1,7 @@
 import type { DomainEvent } from '../../../core/events/domain-event'
 import type { EventHandler } from '../../../shared/application/event-bus'
+import type { Logger } from '../../../shared/application/logger'
 import { type Currency, Money } from '../../../shared/value-objects'
-import { AccountNotFoundError } from '../errors/account-not-found.error'
 import type { GetAccountRepository } from '../repositories/get-account.repository'
 import type { UpdateAccountRepository } from '../repositories/update-account.repository'
 
@@ -32,14 +32,26 @@ export interface TransactionPostedNotification extends DomainEvent {
  * (ADR-0005); the infra provider registers it with the bus.
  *
  * Per event: group entries by account, apply the net signed delta, advance the
- * checkpoint to the highest posting `sequence` folded in for that account. If a
- * referenced account is absent (it was validated at post time), that is a real
- * fault and throws — the cache desync is recoverable by recompute (NFR-DATA-001).
+ * checkpoint to the highest posting `sequence` folded in for that account.
+ *
+ * **Swallow-and-log refinement (ADR-0003, recomputable-cache path).** Each
+ * account is processed in its own try/catch. A failure (account missing,
+ * `OptimisticLockError`, infra blip) is **logged as a warning** with the
+ * `accountId` + `cause` and the handler **continues with the next account** —
+ * it never rethrows to the producer. This amends ADR-0003's blanket "handler
+ * errors propagate" only for the cross-context cache update: the cached
+ * `availableBalance` is recomputable (NFR-DATA-001), the immutable
+ * `BalanceSnapshot` trail is untouched by this path (ADR-0006), and failing
+ * `POST /transactions` (HTTP 500) for a downstream cache hiccup would silently
+ * lose the *posting* — far worse than a transient desync. A real production
+ * deployment would back this with a retry queue / Outbox; in the foil the
+ * desync is recoverable by recompute (FEAT-006 `ConsolidateAccountBalance`).
  */
 export class OnTransactionPostedHandler implements EventHandler<TransactionPostedNotification> {
   constructor(
     private readonly getAccount: GetAccountRepository,
     private readonly updateAccount: UpdateAccountRepository,
+    private readonly logger: Logger,
   ) {}
 
   async handle(event: TransactionPostedNotification): Promise<void> {
@@ -54,15 +66,33 @@ export class OnTransactionPostedHandler implements EventHandler<TransactionPoste
       const first = entries[0]
       if (!first) continue // unreachable: a key exists only with ≥1 entry
 
-      const account = await this.getAccount.findById(accountId)
-      if (!account) {
-        throw new AccountNotFoundError(accountId)
-      }
+      try {
+        const account = await this.getAccount.findById(accountId)
+        if (!account) {
+          this.logger.warn(
+            'reflect-balance: account not found; cache desynced (recoverable by recompute)',
+            {
+              accountId,
+              transactionId: event.aggregateId,
+            },
+          )
+          continue
+        }
 
-      const netCents = entries.reduce((sum, e) => sum + e.amountCents, 0)
-      const throughSeq = entries.reduce((max, e) => Math.max(max, e.sequence), 0)
-      account.reflectPosting(Money.fromCents(netCents, first.currency), throughSeq)
-      await this.updateAccount.update(account)
+        const netCents = entries.reduce((sum, e) => sum + e.amountCents, 0)
+        const throughSeq = entries.reduce((max, e) => Math.max(max, e.sequence), 0)
+        account.reflectPosting(Money.fromCents(netCents, first.currency), throughSeq)
+        await this.updateAccount.update(account)
+      } catch (cause) {
+        this.logger.warn(
+          'reflect-balance: failed to fold posting; cache desynced (recoverable by recompute)',
+          {
+            accountId,
+            transactionId: event.aggregateId,
+            cause: cause instanceof Error ? cause.message : String(cause),
+          },
+        )
+      }
     }
   }
 }

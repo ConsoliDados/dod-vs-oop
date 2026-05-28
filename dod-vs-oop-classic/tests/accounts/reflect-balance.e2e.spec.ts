@@ -43,6 +43,22 @@ describe('Reflect balance on posting (e2e)', () => {
     const from = await openAccount('owner-from', 'BRL')
     const to = await openAccount('owner-to', 'BRL')
     const bystander = await openAccount('owner-bystander', 'BRL')
+    const bystanderPair = await openAccount('owner-bystander-pair', 'BRL')
+
+    // Give the bystander a prior non-zero balance via its own posted transaction
+    // — asserting "unchanged" against zero would be too weak (a no-op write
+    // would pass). After this, `bystander` sits at +500 and we expect it to
+    // stay there across the unrelated post below.
+    const seed = await request(server)
+      .post('/transactions')
+      .send({
+        postings: [
+          { accountId: bystander, amount: 500, direction: 'credit' },
+          { accountId: bystanderPair, amount: 500, direction: 'debit' },
+        ],
+      })
+    expect(seed.status).toBe(201)
+    expect(await balanceOf(bystander)).toBe(500)
 
     expect(await balanceOf(from)).toBe(0)
     expect(await balanceOf(to)).toBe(0)
@@ -60,8 +76,9 @@ describe('Reflect balance on posting (e2e)', () => {
     // debit −1000, credit +1000 — reflected synchronously once the post returns
     expect(await balanceOf(from)).toBe(-1000)
     expect(await balanceOf(to)).toBe(1000)
-    // an account not referenced by the transaction is untouched
-    expect(await balanceOf(bystander)).toBe(0)
+    // an account not referenced by the second transaction keeps its prior
+    // non-zero balance — a real "unchanged", not a trivial 0-stays-0.
+    expect(await balanceOf(bystander)).toBe(500)
   })
 
   it('accumulates across successive postings to the same account', async () => {

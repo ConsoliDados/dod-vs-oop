@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common'
 import { InjectRepository } from '@nestjs/typeorm'
 import { Repository } from 'typeorm'
+import { OptimisticLockError } from '../../../application/errors/optimistic-lock.error'
 import type { UpdateAccountRepository } from '../../../application/repositories/update-account.repository'
 import type { AccountAggregate } from '../../../domain/entities/account.aggregate'
 import { AccountTypeOrmEntity } from '../entities/account.typeorm.entity'
@@ -10,8 +11,10 @@ import { AccountTypeOrmMapper } from '../mappers/account.typeorm.mapper'
  * Persists balance/checkpoint changes to an existing account, guarded by the
  * prior `version` (optimistic lock). The aggregate already bumped `version` in
  * `reflectPosting`, so the guard matches `version - 1`. A stale write (no row
- * affected) throws — the cache desync is recoverable by recompute (ADR-0003,
- * NFR-DATA-001).
+ * affected) throws a typed {@link OptimisticLockError} — the
+ * `OnTransactionPostedHandler` catches it and **swallows-and-logs** rather than
+ * failing the producer, because the cached balance is recomputable
+ * (NFR-DATA-001; ADR-0003 refined for the recomputable-cache path; ADR-0006).
  */
 @Injectable()
 export class UpdateAccountTypeOrmRepository implements UpdateAccountRepository {
@@ -34,7 +37,7 @@ export class UpdateAccountTypeOrmRepository implements UpdateAccountRepository {
       },
     )
     if (!result.affected) {
-      throw new Error(`Optimistic lock conflict updating account ${entity.id}`)
+      throw new OptimisticLockError(entity.id)
     }
   }
 }
