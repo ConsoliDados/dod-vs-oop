@@ -34,6 +34,7 @@ events on the synchronous in-memory bus (no Outbox — ADR-0003).
 | `availableBalance` | `Money` | integer minor units (cents); starts `0` |
 | `holdAmount` | `Money` | cents; starts `0`; non-negative |
 | `version` | `number` | optimistic-lock counter; non-negative integer |
+| `lastPostedSeq` | `number` | balance checkpoint: highest posting `sequence` folded into `availableBalance` (ADR-0006); starts `0`, advances monotonically via `reflectPosting` (FEAT-003) |
 | `createdAt/updatedAt/deletedAt` | `Date` | base `Entity`; soft delete via `deletedAt` |
 
 Factories: `create(ownerId, currency)` (new account, emits `AccountOpenedEvent`)
@@ -44,12 +45,14 @@ exist.
 Supporting types: `AccountStatus` (string union), `AccountSnapshot`
 (reconstruction shape), `AccountDto` (client representation; money as cents).
 
-**Balance model (ADR-0006, arriving FEAT-003/006):** the `availableBalance` field
-above is a recomputable **cache**, overwritten on each `TransactionPosted` and
-carrying a checkpoint marker of the last posting it reflects. The audit trail is a
-separate immutable VO **`BalanceSnapshot`** `{ accountId, asOf, balance: Money,
-throughSeq }`, persisted **append-only** — current balance = latest snapshot +
-Σ(postings after `throughSeq`). **Rule: the cache overwrites, the snapshot appends.**
+**Balance model (ADR-0006):** the `availableBalance` field above is a recomputable
+**cache**, overwritten on each `TransactionPosted` via `reflectPosting` and carrying
+the `lastPostedSeq` checkpoint of the last posting it reflects (**landed FEAT-003**).
+The audit trail is a separate immutable VO **`BalanceSnapshot`** `{ accountId, asOf,
+balance: Money, throughSeq }` — the **type** lands FEAT-003; its append-only
+persistence + the `ConsolidateAccountBalance` domain service are FEAT-006. Current
+balance = latest snapshot + Σ(postings after `throughSeq`). **Rule: the cache
+overwrites, the snapshot appends.**
 
 ## 3. Use cases / operations
 
@@ -63,9 +66,41 @@ propagate as **thrown** exceptions (ADR-0002), mapped to HTTP by
 | `OpenAccountUseCase` | `{ ownerId, currency }` | `AccountDto` (201) | `InvalidEntityError` / `InvalidValueObjectError` → 422 |
 | `GetAccountUseCase` | `{ id }` | `AccountDto` (200) | `AccountNotFoundError` → 404 |
 | `GetBalanceUseCase` | `{ id }` | `{ availableBalance: number, currency }` (200) | `AccountNotFoundError` → 404 |
+| `FreezeAccountUseCase` *(FEAT-007)* | `{ id }` | `AccountDto` (200) | `AccountNotFoundError` → 404; `InvalidEntityError` (illegal transition) → 422 |
+| `ActivateAccountUseCase` *(FEAT-007)* | `{ id }` | `AccountDto` (200) | `AccountNotFoundError` → 404; `InvalidEntityError` → 422 |
+| `CloseAccountUseCase` *(FEAT-007)* | `{ id }` | `AccountDto` (200) | `AccountNotFoundError` → 404; `AccountNotClosableError` (non-zero ledger balance) → 422; `InvalidEntityError` → 422 |
 
 HTTP surface (`AccountController`): `POST /accounts`, `GET /accounts/:id`,
-`GET /accounts/:id/balance`.
+`GET /accounts/:id/balance`, and *(FEAT-007)* `PATCH /accounts/:id/freeze`,
+`PATCH /accounts/:id/activate`, `POST /accounts/:id/closure`.
+
+**Event subscriber (FEAT-003):** `OnTransactionPostedHandler` reacts to `ledger`'s
+`TransactionPosted` on the synchronous in-memory bus — per affected account it folds
+the net signed delta into `availableBalance` and advances `lastPostedSeq` via
+`reflectPosting`, persisting through `UpdateAccountRepository`. Framework-free
+(ADR-0005); registered with the bus in `accounts.module.ts` `onModuleInit`. Reads
+the inbound payload as a locally-declared contract, never importing `ledger/domain`.
+
+**Swallow-and-log on the recomputable-cache path** (refines ADR-0003 for FEAT-003).
+Each account is processed in its own `try/catch`; a failure
+(`OptimisticLockError`, absent account, infra blip) is **logged as a warning**
+with the `accountId` + `cause` via the `Logger` port, and the handler **continues
+to the next account** — it never rethrows to the producer. Rationale: the cached
+balance is recomputable (NFR-DATA-001) and the immutable `BalanceSnapshot`
+audit trail (ADR-0006) is untouched by this path, so letting a cache hiccup fail
+`POST /transactions` (HTTP 500) would silently lose the *posting* — strictly
+worse than a transient desync recoverable by recompute (FEAT-006). The
+`UpdateAccountRepository` impl raises a typed `OptimisticLockError extends
+DomainError` (greppable, structured) on a stale `version` guard. Tested
+explicitly in `tests/accounts/reflect-balance-desync.e2e.spec.ts`. A real
+production deployment would back this with a retry queue / Outbox.
+
+**Domain service (FEAT-007, ADR-0010):** status transitions (`freeze`/`activate`/
+`close`) are intention-revealing behaviors on the aggregate, each under a transition
+guard. Closing is gated by `CloseAccountService` — it requires a **zero balance
+recomputed from the ledger** (NFR-DATA-001), read via the `LedgerBalanceReader` ACL
+(accounts→ledger). The *decision* spans contexts (service); the *transition* is
+`account.close()` on the aggregate.
 
 ## 4. Invariants
 
@@ -84,6 +119,10 @@ HTTP surface (`AccountController`): `POST /accounts`, `GET /accounts/:id`,
   subclasses of `DomainError` → **422** with `{ code: 'VALIDATION_ERROR', message, fields[] }`.
 - Application: `AccountNotFoundError extends UseCaseError` (code `ACCOUNT_NOT_FOUND`)
   → **404**. The filter's `*_NOT_FOUND` convention drives the status.
+- Repository: `OptimisticLockError extends DomainError` (FEAT-003) — raised by
+  `UpdateAccountRepository` impls when the prior-`version` guard matches zero
+  rows. **Caught inside the cross-context cache handler** (swallow-and-log; see
+  §3 / ADR-0003 refinement); never reaches the HTTP filter today.
 
 > **Framework-agnostic application (ADR-0005)**: `domain/` + `application/` are
 > plain TypeScript. Use cases are plain classes whose constructor takes the ports
@@ -92,16 +131,29 @@ HTTP surface (`AccountController`): `POST /accounts`, `GET /accounts/:id`,
 > `infrastructure/accounts.module.ts`. The infra layer is swappable (Elysia/Bun).
 
 - **Repository ports (segregated, playbook §5):** `CreateAccountRepository`
-  (`insert`), `GetAccountRepository` (`findById`, filters `deletedAt IS NULL`) —
-  interfaces in `application/repositories/`. Bound to TypeORM impls via Symbol
-  tokens in `infrastructure/provider/repositories/` (`useClass`).
+  (`insert`), `GetAccountRepository` (`findById`, filters `deletedAt IS NULL`),
+  `UpdateAccountRepository` (`update`, optimistic-lock guard on the prior `version`;
+  FEAT-003) — interfaces in `application/repositories/`. Bound to TypeORM impls via
+  Symbol tokens in `infrastructure/provider/repositories/` (`useClass`).
 - **EventBus port:** `src/shared/application/event-bus.ts` (`EventBus`);
   use cases depend on the port, never the impl.
+- **Logger port** (`src/shared/application/logger.ts`, FEAT-003) — minimal
+  framework-agnostic `{ warn, error, info }` interface. Used by
+  `OnTransactionPostedHandler` to surface the swallow-and-log warning on a
+  failed cache update. Impl `ConsoleLogger` (wraps NestJS `Logger`) wired via
+  `LOGGER` token in `SharedModule` (`@Global`); tests override the provider
+  with a spy.
+- **`LedgerBalanceReader` port** (`application/ports/`, *FEAT-007*) — cross-context read
+  (accounts→ledger ACL): the account's balance summed from the ledger posting history
+  (`Money`), used by `CloseAccountService` to verify a zero balance before close. Impl
+  `LedgerBalanceReaderTypeOrm` reads the ledger `postings` table read-only.
 - **Persistence:** `AccountTypeOrmEntity` (table `accounts`) + bidirectional
   `AccountTypeOrmMapper` (`toPersistence` / `toDomain`). Stack per ADR-0001
   (TypeORM + better-sqlite3 `:memory:`).
 - **Events:** emits `AccountOpenedEvent` via the `EventBus` port (impl
-  `InMemoryEventBus` in `src/shared/infrastructure`); no subscribers yet.
+  `InMemoryEventBus` in `src/shared/infrastructure`). **Subscribes** to `ledger`'s
+  `TransactionPosted` (FEAT-003) through `OnTransactionPostedHandler`, registered in
+  `accounts.module.ts` `onModuleInit`.
 - **HTTP:** `AccountController` (injects use cases via `@Inject(<TOKEN>)`) +
   `OpenAccountRequest` DTO (no class-validator; domain is the validation authority).
 
@@ -109,7 +161,8 @@ HTTP surface (`AccountController`): `POST /accounts`, `GET /accounts/:id`,
 
 - Holds lifecycle (REQ-004/005) — deferred to a later accounts-deepening epic;
   `holdAmount` exists but no place/release endpoints.
-- Event-driven `availableBalance` cache overwrite + checkpoint advance on `TransactionPosted` (FEAT-003, ADR-0006).
-- `BalanceSnapshot` VO + `ConsolidateAccountBalance` domain service (FEAT-006, ADR-0006). Checkpoint key (`throughSeq`) finalized with FEAT-002's `Posting`. Cold/archive tiering forward-looking.
+- ✅ Event-driven `availableBalance` cache overwrite + `lastPostedSeq` checkpoint advance on `TransactionPosted` (FEAT-003, ADR-0006/0008) — done.
+- ✅ `BalanceSnapshot` VO **type** landed (FEAT-003). Its append-only persistence + the `ConsolidateAccountBalance` domain service remain FEAT-006 (ADR-0006); `throughSeq` = the global posting `sequence`. Cold/archive tiering forward-looking.
+- 🔜 Status lifecycle — `freeze`/`activate`/`close` behaviors + `CloseAccountService` (close-by-ledger-recompute via the `LedgerBalanceReader` ACL); `frozen`/`closed` reject postings. **Designed (FEAT-007, ADR-0010, SRS REQ-012/013), pending implementation**; pulled ahead of FEAT-004/005.
 - Boundary DTO validation via `class-validator` — deferred (not a dependency yet);
   noted in `src/accounts/AGENTS.md`.

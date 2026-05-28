@@ -6,12 +6,17 @@ export interface TransactionEntry {
   accountId: string
   amountCents: number
   currency: Currency
+  /** Global monotonic posting order (ADR-0006 `throughSeq`); assigned at persistence (ADR-0008). */
+  sequence: number
 }
 
 /**
- * Emitted when a transaction is posted (`TransactionAggregate.create`).
+ * Emitted when a transaction is posted.
  *
- * - **Emitted by**: `PostTransactionUseCase` (pulled after persistence).
+ * - **Built & published by**: `PostTransactionUseCase` **post-persistence** from
+ *   the persisted postings (each entry carries its DB-assigned `sequence`;
+ *   ADR-0008). It is **not** emitted from `TransactionAggregate.create()` — the
+ *   sequence is a DB fact and the aggregate doesn't have it before insert.
  * - **Consumers**: `accounts` folds `entries` into the cached available balance (FEAT-003).
  * - **Delivery**: synchronous in-memory EventBus, no Outbox (ADR-0003).
  *

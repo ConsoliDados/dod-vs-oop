@@ -1,7 +1,7 @@
 import { AggregateRoot } from '../../../core/entities/aggregate-root'
 import type { InvalidEntityError } from '../../../core/errors'
 import { type Currency, Identifier, Money } from '../../../shared/value-objects'
-import { type TransactionEntry, TransactionPostedEvent } from '../events/transaction-posted.event'
+import type { TransactionEntry } from '../events/transaction-posted.event'
 import { type PostingDirection, toSignedCents } from '../posting-direction'
 import { TransactionValidator } from '../validators/transaction.validator'
 import { Posting, type PostingSnapshot } from './posting.entity'
@@ -33,14 +33,29 @@ export interface TransactionSnapshot {
 
 /**
  * Transaction aggregate root — a set of 2+ postings that balance exactly
- * (SRS glossary; REQ-006). The unit of consistency for a money movement and the
- * append-only source of truth (REQ-011); postings are never mutated.
+ * (SRS glossary; REQ-006). The unit of consistency for a money movement.
+ *
+ * **Deliberately behavior-light — this is NOT an anemic-domain smell.** A ledger
+ * is append-only and immutable (REQ-011; double-entry has worked this way since
+ * Pacioli, 1494): once posted, a transaction and its postings are never mutated.
+ * The aggregate therefore exposes only factories + getters by design — there is no
+ * legitimate `update()` / state transition to model, so modelling one would be the
+ * mistake, not the absence. Corrections happen by **reversal** (FEAT-004, REQ-007):
+ * a *new* mirror transaction, never a mutation of the original.
+ *
+ * Contrast the account aggregate, whose mutable cached balance and (future)
+ * status legitimately carry behavior (e.g. `reflectPosting`, `freeze`/`close`) —
+ * there, getters-only *would* be anemia. The distinction is the domain rule, not a
+ * coding shortcut. See `docs/.../architecture/sdds/sdd-ledger.md` §4 (invariant 6),
+ * SRS REQ-011, and ADR-0006.
  *
  * Invariants (enforced by {@link TransactionValidator}, throw-based per ADR-0002):
  * - ≥2 postings; all sharing a single currency; signed amounts sum to zero.
  *
- * Emits {@link TransactionPostedEvent} on `create`. Cross-context checks
- * (account existence + currency match) are the use case's job, not the aggregate's.
+ * The `TransactionPosted` event is built & published by `PostTransactionUseCase`
+ * from the persisted postings (it needs each posting's `sequence`; ADR-0008), not
+ * emitted here. Cross-context checks (account existence + currency match) are the
+ * use case's job, not the aggregate's.
  */
 export class TransactionAggregate extends AggregateRoot<TransactionValidator, InvalidEntityError> {
   private constructor(
@@ -76,9 +91,8 @@ export class TransactionAggregate extends AggregateRoot<TransactionValidator, In
       now,
       now,
     )
-    transaction.addDomainEvent(
-      new TransactionPostedEvent(transaction.getId().getValue(), now, transaction.toEntries()),
-    )
+    // `TransactionPosted` is built & published by the use case from the persisted
+    // postings (it needs each posting's `sequence`, assigned at persistence; ADR-0008).
     return transaction
   }
 
@@ -120,13 +134,24 @@ export class TransactionAggregate extends AggregateRoot<TransactionValidator, In
     return first.getAmount().getCurrency()
   }
 
-  /** Plain-data per-account effects for the `TransactionPosted` event payload. */
+  /**
+   * Plain-data per-account effects for the `TransactionPosted` payload — including
+   * each posting's `sequence` (ADR-0008). Call **after persistence**: the sequence is
+   * assigned at insert, so an unpersisted posting throws here.
+   */
   public toEntries(): TransactionEntry[] {
-    return this.postings.map((p) => ({
-      accountId: p.getAccountId().getValue(),
-      amountCents: p.getSignedCents(),
-      currency: p.getAmount().getCurrency(),
-    }))
+    return this.postings.map((p) => {
+      const sequence = p.getSequence()
+      if (sequence === undefined) {
+        throw new Error('toEntries() requires persisted postings (sequence not yet assigned)')
+      }
+      return {
+        accountId: p.getAccountId().getValue(),
+        amountCents: p.getSignedCents(),
+        currency: p.getAmount().getCurrency(),
+        sequence,
+      }
+    })
   }
 
   public override toString(): string {

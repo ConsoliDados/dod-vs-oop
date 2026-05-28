@@ -25,6 +25,11 @@ export interface PostingSnapshot {
  * A single immutable debit or credit against one account, belonging to a
  * transaction (SRS glossary; REQ-011 immutability). Non-root entity inside
  * {@link TransactionAggregate}. Holds a **signed** `Money` (credit +, debit −).
+ *
+ * **Getters-only by design, not anemic.** A posting is a historical fact: once
+ * written it is never changed (REQ-011), so it exposes no state-mutating behavior
+ * — the immutability *is* the domain rule, not a missing feature. See
+ * `docs/.../architecture/sdds/sdd-ledger.md` §4 (invariant 6) and SRS REQ-011.
  */
 export class Posting extends Entity<PostingValidator, InvalidEntityError> {
   private constructor(

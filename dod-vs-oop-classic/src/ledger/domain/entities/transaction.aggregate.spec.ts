@@ -2,7 +2,6 @@ import { randomUUID } from 'node:crypto'
 import { describe, expect, it } from 'vitest'
 import { InvalidEntityError } from '../../../core/errors'
 import type { Currency } from '../../../shared/value-objects'
-import { TransactionPostedEvent } from '../events/transaction-posted.event'
 import { type PostingInput, TransactionAggregate } from './transaction.aggregate'
 
 function posting(
@@ -14,19 +13,17 @@ function posting(
 }
 
 describe('TransactionAggregate', () => {
-  it('creates a balanced transaction and emits TransactionPosted', () => {
+  it('creates a balanced transaction (signed amounts sum to zero)', () => {
     const tx = TransactionAggregate.create({ postings: [posting('debit'), posting('credit')] })
 
     expect(tx.getPostings()).toHaveLength(2)
     expect(tx.getCurrency()).toBe('BRL')
-
-    const events = tx.getDomainEvents()
-    expect(events).toHaveLength(1)
-    expect(events[0]).toBeInstanceOf(TransactionPostedEvent)
-    const entries = (events[0] as TransactionPostedEvent).entries
-    expect(entries).toHaveLength(2)
     // signed: debit −1000, credit +1000 → sums to zero
-    expect(entries.reduce((acc, e) => acc + e.amountCents, 0)).toBe(0)
+    const sum = tx.getPostings().reduce((acc, p) => acc + p.getSignedCents(), 0)
+    expect(sum).toBe(0)
+    // `TransactionPosted` is built by the use case post-persistence (ADR-0008), not
+    // on create — covered by post-transaction.e2e + reflect-balance.e2e.
+    expect(tx.getDomainEvents()).toHaveLength(0)
   })
 
   it('THROWS InvalidEntityError on an unbalanced transaction', () => {

@@ -30,6 +30,10 @@ export class AccountTypeOrmEntity {
   @Column({ type: 'integer' })
   version!: number
 
+  /** Checkpoint: highest posting `sequence` folded into `availableBalanceCents` (ADR-0006). */
+  @Column({ type: 'integer', default: 0 })
+  lastPostedSeq!: number
+
   @Column({ type: 'datetime' })
   createdAt!: Date
 

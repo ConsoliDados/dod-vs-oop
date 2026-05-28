@@ -75,7 +75,7 @@ dod-vs-oop-classic/
 - A context's `domain/` depends only on `core/` + `shared/`.
 - `application/` depends on its own `domain/` + ports; never on `infrastructure/`.
 - `infrastructure/` depends on `application/` (implements its ports) + `domain/` (via mappers).
-- A context **never** imports another context's `domain/` or `application/`. Cross-context contact is event payloads (plain data) defined in `shared/`.
+- A context **never** imports another context's `domain/` or `application/`. Cross-context contact is event payloads (plain data); the sanctioned pattern is **the producer defines the payload in its own `domain/events/`** (so the producer owns its contract) and **the consumer redeclares a local inbound contract** in its `application/` (symmetric to a read ACL like `AccountLookup`). The invariant is *no cross-context import* — not "live in `shared/`". Only payloads genuinely shared by ≥ 2 contexts (e.g. cross-cutting types) land in `shared/`.
 
 ## 5. Cross-cutting concerns
 

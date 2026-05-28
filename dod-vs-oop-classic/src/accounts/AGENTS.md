@@ -25,7 +25,8 @@ src/accounts/
 │   ├── usecases/                — OpenAccount / GetAccount / GetBalance (plain classes; ctor takes ports)
 │   ├── repositories/            — segregated PORTS: CreateAccountRepository, GetAccountRepository (no DI token)
 │   ├── mappers/                 — AccountUseCaseMapper (domain → AccountDto)
-│   └── errors/                  — AccountNotFoundError (UseCaseError, → 404)
+│   ├── handlers/                — OnTransactionPostedHandler (FEAT-003; swallow-and-log on cache failure)
+│   └── errors/                  — AccountNotFoundError (UseCaseError, → 404); OptimisticLockError (DomainError, caught by handler)
 └── infrastructure/              — WHERE NESTJS LIVES
     ├── accounts.module.ts       — NestJS module; composes the providers below
     ├── provider/
