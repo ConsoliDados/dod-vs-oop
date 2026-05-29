@@ -21,6 +21,7 @@ export class TransactionValidator extends EntityValidator<
     this.validatePostingCount()
     this.validateSingleCurrency()
     this.validateBalanced()
+    this.validateReversedTransactionId()
 
     if (this.hasErrors()) {
       throw InvalidEntityError.forAggregate('Transaction', this.getErrors())
@@ -54,6 +55,24 @@ export class TransactionValidator extends EntityValidator<
     if (sum !== 0) {
       this.addError(
         new InvalidPropertyError('postings', `Transaction is not balanced (Σ signed = ${sum})`),
+      )
+    }
+  }
+
+  /**
+   * Cheap guard against a corrupt persisted value (FEAT-004): when present, the
+   * link must be a non-empty uuid-shaped string. The field is internal — set by
+   * `reverseOf` or `buildExisting` — so violations are unreachable in practice.
+   */
+  private validateReversedTransactionId(): void {
+    const ref = this.clazz.getReversedTransactionId()
+    if (ref === undefined) return
+    if (typeof ref !== 'string' || ref.length !== 36) {
+      this.addError(
+        new InvalidPropertyError(
+          'reversedTransactionId',
+          'reversedTransactionId must be a uuid-shaped string when present',
+        ),
       )
     }
   }

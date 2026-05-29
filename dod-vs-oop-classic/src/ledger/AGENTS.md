@@ -20,22 +20,24 @@ Owns the **append-only source of truth**: balanced double-entry transactions and
 src/ledger/
 ├── domain/
 │   ├── posting-direction.ts          — debit|credit + signed/direction helpers (credit +, debit −)
-│   ├── entities/transaction.aggregate.ts — TransactionAggregate (root; create/buildExisting, throws)
+│   ├── entities/transaction.aggregate.ts — TransactionAggregate (root; create/buildExisting/reverseOf, throws)
 │   ├── entities/posting.entity.ts    — Posting (non-root entity inside the transaction; signed Money)
 │   ├── validators/{transaction,posting}.validator.ts — ≥2 postings, balanced (Σ signed == 0), single currency
 │   └── events/transaction-posted.event.ts — TransactionPostedEvent (plain-data entries)
 ├── application/                       — FRAMEWORK-FREE (no NestJS)
 │   ├── usecases/post-transaction.usecase.ts — plain class; ctor takes ports
-│   ├── ports/account-lookup.port.ts   — cross-context read port (ACL target)
+│   ├── usecases/reverse-transaction.usecase.ts — FEAT-004; load → active guard → reverseOf → insert → publish
+│   ├── ports/account-lookup.port.ts   — cross-context read port (ACL target; carries status FEAT-007)
 │   ├── repositories/create-transaction.repository.ts — segregated port (atomic write)
-│   ├── mappers/transaction.usecase.mapper.ts
-│   └── errors/transaction-account-not-found.error.ts (→ 404)
+│   ├── repositories/get-transaction.repository.ts    — FEAT-004 segregated read port
+│   ├── mappers/transaction.usecase.mapper.ts         — DTO carries optional reversedTransactionId
+│   └── errors/                       — TransactionAccountNotFoundError (→ 404), AccountNotActiveError (→ 422), TransactionNotFoundError (→ 404)
 └── infrastructure/                    — WHERE NESTJS LIVES
     ├── ledger.module.ts
     ├── provider/{usecases,repositories,acl}/*.provider.ts — Symbol token + binding each
-    ├── typeorm/{entities,mappers,repositories}/...        — Transaction + Posting tables; atomic insert
+    ├── typeorm/{entities,mappers,repositories}/...        — Transaction + Posting tables; atomic insert + by-id read
     ├── acl/account-lookup.typeorm.ts  — reads the accounts table read-only (the one cross-infra touch)
-    └── http/{controllers,dtos}/...    — TransactionController (POST /transactions)
+    └── http/{controllers,dtos}/...    — TransactionController (POST /transactions, POST /transactions/:id/reversals)
 ```
 
 ## Commands
@@ -56,7 +58,7 @@ pnpm typecheck                  # tsc --noEmit
 
 ## Points of attention
 
-- **Postings are immutable (REQ-011)** — there is no update/delete repository path. Corrections are reversals (FEAT-004), never mutations.
+- **Postings are immutable (REQ-011)** — there is no update/delete repository path. Corrections are reversals (FEAT-004, ADR-0011) — a *new* aggregate via `TransactionAggregate.reverseOf(original)` with a one-way `reversedTransactionId`; the original row is byte-identical before and after. No `reversedBy` denormalization on the original.
 - **Atomic write**: the transaction row + its posting rows are saved in one DB transaction (`DataSource.transaction`) so a balanced set is all-or-nothing.
 - The `AccountLookupTypeOrm` ACL is the **only** place ledger infra imports an `accounts` artifact (the persistence entity). Keep it there; never import `accounts/domain` or `accounts/application`.
 - `PostTransactionUseCase` pulls events from the **in-memory aggregate**, not the repo's rehydrated return.

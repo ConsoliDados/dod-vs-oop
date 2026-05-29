@@ -16,12 +16,14 @@ export interface TransactionDto {
   postings: PostingDto[]
   postedAt: string
   createdAt: string
+  /** Set only when this transaction is a reversal (FEAT-004, ADR-0011). */
+  reversedTransactionId?: string
 }
 
 /** Domain → DTO mapper (application layer). */
 export class TransactionUseCaseMapper {
   static toDto(transaction: TransactionAggregate): TransactionDto {
-    return {
+    const dto: TransactionDto = {
       id: transaction.getId().getValue(),
       reference: transaction.getReference(),
       postings: transaction.getPostings().map((posting) => ({
@@ -33,5 +35,10 @@ export class TransactionUseCaseMapper {
       postedAt: transaction.getPostedAt().toISOString(),
       createdAt: transaction.getCreatedAt().toISOString(),
     }
+    const reversedTransactionId = transaction.getReversedTransactionId()
+    if (reversedTransactionId !== undefined) {
+      dto.reversedTransactionId = reversedTransactionId
+    }
+    return dto
   }
 }

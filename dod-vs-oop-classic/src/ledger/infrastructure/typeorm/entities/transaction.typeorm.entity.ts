@@ -20,6 +20,14 @@ export class TransactionTypeOrmEntity {
   @Column({ type: 'datetime' })
   postedAt!: Date
 
+  /**
+   * One-way link to the original (FEAT-004, ADR-0011): set only when this row
+   * is a reversal. The original row never gains a `reversedBy` pointer
+   * (REQ-011 hard — the original is never mutated).
+   */
+  @Column({ type: 'varchar', length: 36, nullable: true })
+  reversedTransactionId!: string | null
+
   @Column({ type: 'datetime' })
   createdAt!: Date
 
