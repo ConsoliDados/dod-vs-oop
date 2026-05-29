@@ -69,11 +69,13 @@ propagate as **thrown** exceptions (ADR-0002), mapped to HTTP by
 | `FreezeAccountUseCase` (FEAT-007) | `{ id }` | `AccountDto` (200) | `AccountNotFoundError` → 404; `InvalidEntityError` (illegal transition) → 422 |
 | `ActivateAccountUseCase` (FEAT-007) | `{ id }` | `AccountDto` (200) | `AccountNotFoundError` → 404; `InvalidEntityError` → 422 |
 | `CloseAccountUseCase` (FEAT-007) | `{ id }` | `AccountDto` (200) | `AccountNotFoundError` → 404; `AccountNotClosableError` (non-zero ledger balance) → 422; `InvalidEntityError` (already closed) → 422 |
+| `ConsolidateAccountBalanceUseCase` (FEAT-006) | `{ id }` | `BalanceSnapshotDto` (200) — newly-appended or pre-existing on a no-op | `AccountNotFoundError` → 404 |
 
 HTTP surface (`AccountController`): `POST /accounts`, `GET /accounts/:id`,
 `GET /accounts/:id/balance`, **`PATCH /accounts/:id/freeze`**,
 **`PATCH /accounts/:id/activate`**, **`POST /accounts/:id/closure`** (FEAT-007 —
-named-behavior endpoints, not REST CRUD).
+named-behavior endpoints, not REST CRUD), **`POST /accounts/:id/consolidations`**
+(FEAT-006 — append a `BalanceSnapshot`; idempotent).
 
 **Event subscriber (FEAT-003):** `OnTransactionPostedHandler` reacts to `ledger`'s
 `TransactionPosted` on the synchronous in-memory bus — per affected account it folds
@@ -95,6 +97,15 @@ worse than a transient desync recoverable by recompute (FEAT-006). The
 DomainError` (greppable, structured) on a stale `version` guard. Tested
 explicitly in `tests/accounts/reflect-balance-desync.e2e.spec.ts`. A real
 production deployment would back this with a retry queue / Outbox.
+
+**Domain service (FEAT-006, ADR-0006) — `ConsolidateAccountBalance`.** Pure
+(no I/O). Receives the ledger-recomputed `{ balance, throughSeq }` and the
+prior latest snapshot (or undefined); decides append-vs-no-op based on
+`throughSeq` monotonicity. The use case feeds it the reads — the service is
+unit-testable without mocks. **The cache is not touched here** — that's
+`OnTransactionPostedHandler`'s responsibility (ADR-0006: *the cache
+overwrites, the snapshot appends*). Idempotency is enforced at the service
+layer (no DB unique constraint) so retries no-op rather than 500.
 
 **Status transitions (FEAT-007, ADR-0010) — aggregate behavior.** `freeze()`,
 `activate()`, `close()` on `AccountAggregate` are intention-revealing methods,
@@ -157,17 +168,19 @@ The *decision* spans contexts (service); the *transition* stays on the aggregate
   failed cache update. Impl `ConsoleLogger` (wraps NestJS `Logger`) wired via
   `LOGGER` token in `SharedModule` (`@Global`); tests override the provider
   with a spy.
-- **`LedgerBalanceReader` port** (`application/ports/`, FEAT-007 — **live**) —
-  cross-context read (accounts→ledger ACL): the account's balance summed from
-  the ledger posting history (`Money`, in the requested currency), used by
-  `CloseAccountUseCase` to feed `CloseAccountService` with a recompute. Impl
+- **`LedgerBalanceReader` port** (`application/ports/`, FEAT-007 — **live**,
+  widened in FEAT-006 to return `{ balance, throughSeq }`) — cross-context
+  read (accounts→ledger ACL): the account's balance summed from the ledger
+  posting history (`Money`, in the requested currency) **and** the highest
+  posting `sequence` summed (`throughSeq` per ADR-0006). Single query —
+  single round-trip; consumed by `CloseAccountUseCase` (destructures
+  `.balance`) and `ConsolidateAccountBalanceUseCase` (uses both). Impl
   `LedgerBalanceReaderTypeOrm` reads the ledger `postings` table read-only
   (`COALESCE(SUM(amountCents), 0)`). Wired by importing
   `PostingTypeOrmEntity` into the accounts `TypeOrmModule.forFeature` —
   **single** accounts→ledger infra touch (ADR-0009 distribution seam).
-- **Persistence:** `AccountTypeOrmEntity` (table `accounts`) + bidirectional
-  `AccountTypeOrmMapper` (`toPersistence` / `toDomain`). Stack per ADR-0001
-  (TypeORM + better-sqlite3 `:memory:`).
+- **`AppendBalanceSnapshotRepository`** + **`GetLatestBalanceSnapshotRepository`** ports (FEAT-006) — segregated insert + read-latest. The trail is **append-only** by design; idempotency lives in the `ConsolidateAccountBalance` service (no DB unique constraint, so a retry races a no-op rather than a 500). `findLatestByAccountId` orders by `throughSeq DESC` (monotonic over the trail; `createdAt` would be the wrong tiebreak — wall-clock drift could lie about order).
+- **Persistence:** `AccountTypeOrmEntity` (table `accounts`) + `BalanceSnapshotTypeOrmEntity` (table `balance_snapshots`, **append-only** — no `updatedAt`, no `deletedAt`, no `version`; index on `(accountId, throughSeq)`) + bidirectional mappers. Stack per ADR-0001 (TypeORM + better-sqlite3 `:memory:`).
 - **Events:** emits `AccountOpenedEvent` via the `EventBus` port (impl
   `InMemoryEventBus` in `src/shared/infrastructure`). **Subscribes** to `ledger`'s
   `TransactionPosted` (FEAT-003) through `OnTransactionPostedHandler`, registered in
@@ -180,7 +193,7 @@ The *decision* spans contexts (service); the *transition* stays on the aggregate
 - Holds lifecycle (REQ-004/005) — deferred to a later accounts-deepening epic;
   `holdAmount` exists but no place/release endpoints.
 - ✅ Event-driven `availableBalance` cache overwrite + `lastPostedSeq` checkpoint advance on `TransactionPosted` (FEAT-003, ADR-0006/0008) — done.
-- ✅ `BalanceSnapshot` VO **type** landed (FEAT-003). Its append-only persistence + the `ConsolidateAccountBalance` domain service remain FEAT-006 (ADR-0006); `throughSeq` = the global posting `sequence`. Cold/archive tiering forward-looking.
+- ✅ `BalanceSnapshot` VO **type** landed (FEAT-003); **persistence + `ConsolidateAccountBalance` domain service live** (FEAT-006, ADR-0006). `POST /accounts/:id/consolidations` recomputes from the ledger via the widened `LedgerBalanceReader` ACL and appends a snapshot — idempotent (no-op when `throughSeq` doesn't advance; gate 2026-05-29). `throughSeq` = the global posting `sequence`. **Cache stays the responsibility of `OnTransactionPostedHandler`** — consolidate writes only the snapshot. Cold/archive tiering forward-looking.
 - ✅ Status lifecycle — `freeze`/`activate`/`close` behaviors + `CloseAccountService` (close-by-ledger-recompute via the `LedgerBalanceReader` ACL); `frozen`/`closed` reject postings via the status-aware `AccountLookup` on the ledger side. **Live (FEAT-007, ADR-0010, SRS REQ-012/013).**
 - Boundary DTO validation via `class-validator` — deferred (not a dependency yet);
   noted in `src/accounts/AGENTS.md`.

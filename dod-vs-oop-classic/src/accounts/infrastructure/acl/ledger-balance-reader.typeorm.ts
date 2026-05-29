@@ -7,19 +7,16 @@ import type { LedgerBalanceReader } from '../../application/ports/ledger-balance
 
 /**
  * Anti-corruption layer: implements `accounts`' `LedgerBalanceReader` port by
- * summing the ledger `postings` table read-only — the reverse direction of
- * FEAT-002's `AccountLookup`. **Single place** `accounts` infra touches
- * ledger persistence (ADR-0009 distribution seam).
+ * summing the ledger `postings` table read-only and returning **both** the
+ * net balance and `throughSeq = max(sequence)` summed (FEAT-006 needs the
+ * sequence for idempotency; FEAT-007 just destructures `.balance`). Single
+ * query — single round-trip; ADR-0009 distribution seam.
  *
- * Returns `Money.zero(currency)` when an account has no postings yet (the
- * recomputed balance is honestly zero — there's no posted activity to sum).
- * Signed cents per posting (credit +, debit −, ADR-0004) → the SUM yields the
- * net signed balance directly.
+ * Returns `{ balance: Money.zero(currency), throughSeq: 0 }` when an account
+ * has no postings yet (honest zero — no posted activity to sum).
  *
- * Stored as `bigint` in sqlite via TypeORM, surfaced as string; we coerce
- * back through `Number` here because the ledger keeps cents in JS safe-integer
- * range for the study (no high-precision wrapper — ADR-0004 documents the
- * forward-looking-policy if we ever cross that threshold).
+ * `amountCents` and `sequence` are integers in JS safe-integer range for the
+ * study (ADR-0004 documents the forward-looking-policy if that ever changes).
  */
 @Injectable()
 export class LedgerBalanceReaderTypeOrm implements LedgerBalanceReader {
@@ -28,13 +25,18 @@ export class LedgerBalanceReaderTypeOrm implements LedgerBalanceReader {
     private readonly postings: Repository<PostingTypeOrmEntity>,
   ) {}
 
-  async balanceOf(accountId: string, currency: Currency): Promise<Money> {
+  async balanceAndThroughSeqOf(
+    accountId: string,
+    currency: Currency,
+  ): Promise<{ balance: Money; throughSeq: number }> {
     const row = await this.postings
       .createQueryBuilder('p')
       .select('COALESCE(SUM(p.amountCents), 0)', 'sum')
+      .addSelect('COALESCE(MAX(p.sequence), 0)', 'throughSeq')
       .where('p.accountId = :accountId', { accountId })
-      .getRawOne<{ sum: string | number | null }>()
+      .getRawOne<{ sum: string | number | null; throughSeq: string | number | null }>()
     const sum = Number(row?.sum ?? 0)
-    return Money.fromCents(sum, currency)
+    const throughSeq = Number(row?.throughSeq ?? 0)
+    return { balance: Money.fromCents(sum, currency), throughSeq }
   }
 }

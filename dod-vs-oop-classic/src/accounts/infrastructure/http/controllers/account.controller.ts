@@ -1,7 +1,9 @@
 import { Body, Controller, Get, HttpCode, Inject, Param, Patch, Post } from '@nestjs/common'
 import type { AccountDto } from '../../../application/mappers/account.usecase.mapper'
+import type { BalanceSnapshotDto } from '../../../application/mappers/balance-snapshot.usecase.mapper'
 import type { ActivateAccountUseCase } from '../../../application/usecases/activate-account.usecase'
 import type { CloseAccountUseCase } from '../../../application/usecases/close-account.usecase'
+import type { ConsolidateAccountBalanceUseCase } from '../../../application/usecases/consolidate-account-balance.usecase'
 import type { FreezeAccountUseCase } from '../../../application/usecases/freeze-account.usecase'
 import type { GetAccountUseCase } from '../../../application/usecases/get-account.usecase'
 import type {
@@ -11,6 +13,7 @@ import type {
 import type { OpenAccountUseCase } from '../../../application/usecases/open-account.usecase'
 import { ACTIVATE_ACCOUNT_USE_CASE } from '../../provider/usecases/activate-account.provider'
 import { CLOSE_ACCOUNT_USE_CASE } from '../../provider/usecases/close-account.provider'
+import { CONSOLIDATE_ACCOUNT_BALANCE_USE_CASE } from '../../provider/usecases/consolidate-account-balance.provider'
 import { FREEZE_ACCOUNT_USE_CASE } from '../../provider/usecases/freeze-account.provider'
 import { GET_ACCOUNT_USE_CASE } from '../../provider/usecases/get-account.provider'
 import { GET_BALANCE_USE_CASE } from '../../provider/usecases/get-balance.provider'
@@ -33,6 +36,8 @@ export class AccountController {
     @Inject(ACTIVATE_ACCOUNT_USE_CASE)
     private readonly activateAccountUseCase: ActivateAccountUseCase,
     @Inject(CLOSE_ACCOUNT_USE_CASE) private readonly closeAccountUseCase: CloseAccountUseCase,
+    @Inject(CONSOLIDATE_ACCOUNT_BALANCE_USE_CASE)
+    private readonly consolidateAccountBalanceUseCase: ConsolidateAccountBalanceUseCase,
   ) {}
 
   @Post()
@@ -72,5 +77,18 @@ export class AccountController {
   @HttpCode(200)
   async close(@Param('id') id: string): Promise<AccountDto> {
     return this.closeAccountUseCase.execute({ id })
+  }
+
+  /**
+   * FEAT-006, ADR-0006: consolidates the account's balance — recomputes from
+   * the ledger and appends a `BalanceSnapshot` to the audit trail. Idempotent
+   * (no-op when `throughSeq` has not advanced — gate 2026-05-29). Always 200;
+   * the response carries the **current** snapshot (newly-appended or
+   * pre-existing).
+   */
+  @Post(':id/consolidations')
+  @HttpCode(200)
+  async consolidate(@Param('id') id: string): Promise<BalanceSnapshotDto> {
+    return this.consolidateAccountBalanceUseCase.execute({ id })
   }
 }
