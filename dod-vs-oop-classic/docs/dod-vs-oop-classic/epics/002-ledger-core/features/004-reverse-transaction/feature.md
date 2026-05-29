@@ -3,7 +3,7 @@ id: FEAT-004
 slug: reverse-transaction
 container: 002-ledger-core
 mode: B
-status: in-research
+status: in-implementation
 depends-on: [FEAT-002, FEAT-003, FEAT-007]
 blocks: []
 ---
