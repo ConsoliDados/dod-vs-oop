@@ -5,26 +5,29 @@
  * and must satisfy the same scenarios (NFR-CORRECT-001 byte-identical JSON,
  * per-impl status mapping documented in each SDD).
  *
- * Boot the target's HTTP server (e.g. `pnpm build && node dist/main.js`) on
- * port 3000 and run this script:
+ * **This harness is a pure HTTP client.** It does not boot, manage, or tear
+ * down the target service — that's a separate concern. Start the service
+ * yourself (`pnpm start:prod` in one shell on the convention port; see
+ * `~/.claude/CLAUDE.md` "Port conventions" — backends start at 3333; 3000
+ * is reserved for the frontend) and run the harness in another:
  *
- *   tsx examples/scripts/smoke.ts
- *
- * or from the example root:
- *
- *   pnpm smoke
+ *   pnpm smoke                                  # uses BASE_URL or PORT defaults
+ *   BASE_URL=http://localhost:3333 pnpm smoke   # explicit target
+ *   PORT=3334 pnpm smoke                        # second backend
  *
  * Scenarios are numbered and labelled with the REQ / FEAT / NFR they cover —
  * the report at the end is the conformance summary against the shared SRS.
  *
- * Exits 0 on full pass, 1 on any failure. No runtime dependencies beyond
- * Node's built-in fetch + assert.
+ * Exits 0 on full pass, 1 on any failure, 2 if the service isn't reachable.
+ * No runtime dependencies beyond Node's built-in fetch + assert.
  */
 
 import { strict as assert } from 'node:assert'
 import { randomUUID } from 'node:crypto'
 
-const BASE = process.env.BASE_URL ?? 'http://localhost:3000'
+// Port convention: backend default 3333 (3000 = frontend). Explicit BASE_URL wins.
+const DEFAULT_PORT = 3333
+const BASE = process.env.BASE_URL ?? `http://localhost:${process.env.PORT ?? DEFAULT_PORT}`
 
 // ──────────────────────────────────────────────────────────────────────────
 // Pretty reporter — no extra dependencies
@@ -163,25 +166,32 @@ async function postTx(
 // Scenarios — mapped 1:1 to REQs / FEATs / NFRs
 // ──────────────────────────────────────────────────────────────────────────
 
-async function waitForServer(): Promise<void> {
-  const deadline = Date.now() + 30_000
-  while (Date.now() < deadline) {
-    try {
-      const res = await fetch(BASE, { method: 'GET' })
-      // Any response (even 404) means the server is up.
-      if (res.status < 600) return
-    } catch {
-      // not yet
+async function preflight(): Promise<void> {
+  try {
+    const res = await fetch(BASE, { method: 'GET' })
+    if (res.status >= 600) {
+      throw new Error(`unexpected status ${res.status}`)
     }
-    await new Promise((r) => setTimeout(r, 200))
+  } catch (cause) {
+    const reason = cause instanceof Error ? cause.message : String(cause)
+    console.error(`${RED}${BOLD}Cannot reach ${BASE}${RESET}`)
+    console.error(`  ${DIM}reason: ${reason}${RESET}`)
+    console.error('')
+    console.error('  Start the service first, then re-run this harness:')
+    console.error(
+      `    ${CYAN}# shell 1${RESET}  PORT=${process.env.PORT ?? DEFAULT_PORT} pnpm start:prod`,
+    )
+    console.error(`    ${CYAN}# shell 2${RESET}  pnpm smoke`)
+    console.error('')
+    console.error(`  Override the target with ${CYAN}BASE_URL=…${RESET} or ${CYAN}PORT=…${RESET}.`)
+    process.exit(2)
   }
-  throw new Error(`server did not become reachable at ${BASE} within 30s`)
 }
 
 async function run(): Promise<void> {
   console.log(`${BOLD}${CYAN}Smoke — dod-vs-oop study${RESET}`)
   console.log(`${DIM}target: ${BASE}${RESET}\n`)
-  await waitForServer()
+  await preflight()
 
   // ── account lifecycle (REQ-001/002/003)
   let openedId = ''

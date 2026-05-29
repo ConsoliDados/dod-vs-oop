@@ -1,33 +1,65 @@
 # Smoke harness — dod-vs-oop study
 
 Shared harness for the comparative study (`dod-vs-oop-classic` + the
-forthcoming `dod-vs-oop-dod`). Exercises a numbered scenario sequence
-mapped 1:1 to the shared `srs.md` (REQs + NFRs) and to each implementation's
-per-context SDD endpoints. Both implementations must satisfy it — that's
-the **shape** of NFR-CORRECT-001 conformance at the smoke level (full
-byte-identical JSON conformance is a separate suite once the DOD side lands).
+forthcoming `dod-vs-oop-dod`). **Pure HTTP client.** Runs against an
+already-running target and asserts a numbered scenario sequence mapped 1:1
+to the shared `srs.md` (REQs + NFRs) and to each implementation's per-context
+SDD endpoints. Both implementations must satisfy it — that's the **shape**
+of NFR-CORRECT-001 conformance at the smoke level (full byte-identical JSON
+conformance is a separate suite once the DOD side lands).
 
-## Run it
+The harness does not boot, manage, or tear down the service. That's
+intentional — boot and teardown are a separate concern and conflating them
+with assertion would obscure failures.
 
-From the example root (`examples/dod-vs-oop-classic/` today):
+## Run it (two shells, idiomatic smoke pattern)
+
+The convention port for backends in this study is **`3333`**
+(`3000` is reserved for the frontend; see `~/.claude/CLAUDE.md`
+"Port conventions").
 
 ```bash
-pnpm smoke              # builds dist/ + boots + waits for the port + runs smoke.ts + tears down
+# shell 1 — boot the target
+cd examples/dod-vs-oop-classic
+pnpm start:prod                       # listens on 3333 by default
+# or: PORT=3334 pnpm start:prod       # second backend; front owns 3000
+
+# shell 2 — run the harness
+cd examples/dod-vs-oop-classic
+pnpm smoke                            # uses PORT=3333 or BASE_URL
+# or: BASE_URL=http://localhost:3334 pnpm smoke
 ```
 
-Manual / debugging — boot the server yourself and run the harness in another
-shell:
+Direct invocation (any cwd) — the harness is just a Node script:
 
 ```bash
-# shell 1
-pnpm start:prod
-
-# shell 2
-BASE_URL=http://localhost:3000 tsx ../scripts/smoke.ts
+node examples/scripts/smoke.ts
+PORT=3334 node examples/scripts/smoke.ts
+BASE_URL=http://example.com:8080 node examples/scripts/smoke.ts
 ```
 
-Exits 0 on full pass, 1 on any failure. No runtime deps beyond Node's
-built-in `fetch` + `assert`.
+Exit codes:
+- `0` — all scenarios passed
+- `1` — at least one scenario failed (failing ids printed)
+- `2` — target unreachable (the harness printed start-the-server instructions and stopped)
+
+No runtime deps beyond Node's built-in `fetch` + `assert`. Node 22.6+ strips
+TS types natively, so no runner is needed.
+
+## CI
+
+GitHub Actions inlines the boot in the workflow itself — no committed
+wrapper script. The job pattern:
+
+```yaml
+- run: pnpm build
+- run: PORT=3333 node dist/main.js &
+- run: |
+    for _ in $(seq 1 60); do curl -sf http://localhost:3333 && break; sleep 0.5; done
+- run: PORT=3333 pnpm smoke
+```
+
+See `.github/workflows/ci-dod-vs-oop-classic.yml` for the actual steps.
 
 ## What's covered (EPIC-002)
 
@@ -61,56 +93,60 @@ built-in `fetch` + `assert`.
 - **REQ-009** (statements) — EPIC-003.
 - **REQ-010** (reconciliation) — EPIC-004.
 
-These will get smoke scenarios when their epics ship.
+These get smoke scenarios when their epics ship.
 
 ## The same sequence as a curl recipe (eyes-on)
 
-For a human walk-through (or to debug a single scenario):
+For a human walk-through (or to debug a single scenario), against a server
+on `PORT=3333`:
 
 ```bash
+BASE=http://localhost:3333
+
 # Open accounts
-ACCT_FROM=$(curl -s -X POST localhost:3000/accounts \
+ACCT_FROM=$(curl -s -X POST $BASE/accounts \
   -H 'content-type: application/json' \
   -d '{"ownerId":"manual-from","currency":"BRL"}' | jq -r .id)
 
-ACCT_TO=$(curl -s -X POST localhost:3000/accounts \
+ACCT_TO=$(curl -s -X POST $BASE/accounts \
   -H 'content-type: application/json' \
   -d '{"ownerId":"manual-to","currency":"BRL"}' | jq -r .id)
 
 # Post a balanced tx
-TX=$(curl -s -X POST localhost:3000/transactions \
+TX=$(curl -s -X POST $BASE/transactions \
   -H 'content-type: application/json' \
   -d "{\"postings\":[{\"accountId\":\"$ACCT_FROM\",\"amount\":1000,\"direction\":\"debit\"},{\"accountId\":\"$ACCT_TO\",\"amount\":1000,\"direction\":\"credit\"}]}" | jq -r .id)
 
 # Balances reflect (REQ-003 cross-context)
-curl -s localhost:3000/accounts/$ACCT_FROM/balance | jq
-curl -s localhost:3000/accounts/$ACCT_TO/balance | jq
+curl -s $BASE/accounts/$ACCT_FROM/balance | jq
+curl -s $BASE/accounts/$ACCT_TO/balance | jq
 
 # Reverse (REQ-007)
-curl -s -X POST localhost:3000/transactions/$TX/reversals | jq
+curl -s -X POST $BASE/transactions/$TX/reversals | jq
 
 # Balances flatten (REQ-007 + REQ-003)
-curl -s localhost:3000/accounts/$ACCT_FROM/balance | jq
+curl -s $BASE/accounts/$ACCT_FROM/balance | jq
 
 # List postings (REQ-008)
-curl -s "localhost:3000/accounts/$ACCT_FROM/postings?limit=10" | jq
+curl -s "$BASE/accounts/$ACCT_FROM/postings?limit=10" | jq
 
 # Lifecycle (REQ-012)
-curl -s -X PATCH localhost:3000/accounts/$ACCT_FROM/freeze | jq
-curl -s -X PATCH localhost:3000/accounts/$ACCT_FROM/activate | jq
+curl -s -X PATCH $BASE/accounts/$ACCT_FROM/freeze | jq
+curl -s -X PATCH $BASE/accounts/$ACCT_FROM/activate | jq
 
 # Consolidate (REQ-014)
-curl -s -X POST localhost:3000/accounts/$ACCT_TO/consolidations | jq
+curl -s -X POST $BASE/accounts/$ACCT_TO/consolidations | jq
 
 # Close at zero (REQ-013) — open a fresh one
-ZERO=$(curl -s -X POST localhost:3000/accounts \
+ZERO=$(curl -s -X POST $BASE/accounts \
   -H 'content-type: application/json' \
   -d '{"ownerId":"manual-zero","currency":"BRL"}' | jq -r .id)
-curl -s -X POST localhost:3000/accounts/$ZERO/closure | jq
+curl -s -X POST $BASE/accounts/$ZERO/closure | jq
 ```
 
 ## Adding scenarios
 
-The script is intentionally flat — each scenario is a `scenario(id, label, body)`
-call. Add yours next to the appropriate REQ block. Keep the `id` short and
-greppable; the report uses it as the failure pointer.
+The script is intentionally flat — each scenario is a
+`scenario(id, label, body)` call. Add yours next to the appropriate REQ
+block. Keep the `id` short and greppable; the report uses it as the failure
+pointer.
