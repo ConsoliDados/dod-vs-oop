@@ -26,6 +26,8 @@ export interface TransactionSnapshot {
   metadata: Record<string, unknown>
   postedAt: Date
   postings: PostingSnapshot[]
+  /** Set only when this transaction is a reversal — points to the original (FEAT-004, ADR-0011). */
+  reversedTransactionId?: string
   createdAt: Date
   updatedAt: Date
   deletedAt?: Date
@@ -41,7 +43,8 @@ export interface TransactionSnapshot {
  * The aggregate therefore exposes only factories + getters by design — there is no
  * legitimate `update()` / state transition to model, so modelling one would be the
  * mistake, not the absence. Corrections happen by **reversal** (FEAT-004, REQ-007):
- * a *new* mirror transaction, never a mutation of the original.
+ * `reverseOf(original)` produces a *new* aggregate with mirrored postings, linked
+ * one-way via `reversedTransactionId`. The original is never touched (ADR-0011).
  *
  * Contrast the account aggregate, whose mutable cached balance and (future)
  * status legitimately carry behavior (e.g. `reflectPosting`, `freeze`/`close`) —
@@ -64,6 +67,7 @@ export class TransactionAggregate extends AggregateRoot<TransactionValidator, In
     private readonly postings: Posting[],
     private readonly metadata: Record<string, unknown>,
     private readonly postedAt: Date,
+    private readonly reversedTransactionId: string | undefined,
     createdAt: Date,
     updatedAt: Date,
     deletedAt?: Date,
@@ -88,12 +92,52 @@ export class TransactionAggregate extends AggregateRoot<TransactionValidator, In
       postings,
       input.metadata ?? {},
       now,
+      undefined,
       now,
       now,
     )
     // `TransactionPosted` is built & published by the use case from the persisted
     // postings (it needs each posting's `sequence`, assigned at persistence; ADR-0008).
     return transaction
+  }
+
+  /**
+   * Produces a **new** transaction that mirrors `original`'s postings (each
+   * posting's signed `Money` negated) and links back via `reversedTransactionId`
+   * (FEAT-004, REQ-007, ADR-0011). The link is **one-way** — the original is
+   * never touched (REQ-011 hard).
+   *
+   * Validator runs (a mirror of a zero-sum set is zero-sum, the count and the
+   * single-currency invariants carry over). Postings get fresh ids; the
+   * aggregate gets a fresh id. The reversal is itself a normal posted
+   * transaction: persisted by `CreateTransactionRepository` and emitting
+   * `TransactionPosted` with the mirror entries (ADR-0008), so the existing
+   * FEAT-003 `OnTransactionPostedHandler` in `accounts` folds the cancelling
+   * deltas without any special case.
+   *
+   * `reference` carries the original's hint when present (`Reversal of <ref>`)
+   * — gate decision 2026-05-29; cosmetic.
+   *
+   * Reverse-of-a-reversal is allowed by design (gate decision 2026-05-29) —
+   * the chain depth is not capped; each reversal is just another
+   * `TransactionAggregate`.
+   */
+  static reverseOf(original: TransactionAggregate): TransactionAggregate {
+    const now = new Date()
+    const mirroredPostings = original
+      .getPostings()
+      .map((p) => Posting.create(p.getAccountId(), p.getAmount().negate(), now))
+    const originalReference = original.getReference()
+    return new TransactionAggregate(
+      Identifier.create(),
+      originalReference !== undefined ? `Reversal of ${originalReference}` : undefined,
+      mirroredPostings,
+      original.getMetadata(),
+      now,
+      original.getId().getValue(),
+      now,
+      now,
+    )
   }
 
   static buildExisting(snapshot: TransactionSnapshot): TransactionAggregate {
@@ -103,6 +147,7 @@ export class TransactionAggregate extends AggregateRoot<TransactionValidator, In
       snapshot.postings.map((p) => Posting.buildExisting(p)),
       snapshot.metadata,
       snapshot.postedAt,
+      snapshot.reversedTransactionId,
       snapshot.createdAt,
       snapshot.updatedAt,
       snapshot.deletedAt,
@@ -123,6 +168,11 @@ export class TransactionAggregate extends AggregateRoot<TransactionValidator, In
 
   public getPostedAt(): Date {
     return this.postedAt
+  }
+
+  /** Set only when this transaction is a reversal (FEAT-004, ADR-0011). */
+  public getReversedTransactionId(): string | undefined {
+    return this.reversedTransactionId
   }
 
   public getCurrency(): Currency {

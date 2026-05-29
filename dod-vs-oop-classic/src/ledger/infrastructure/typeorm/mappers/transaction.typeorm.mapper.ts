@@ -14,6 +14,7 @@ export class TransactionTypeOrmMapper {
     entity.reference = transaction.getReference() ?? null
     entity.metadata = transaction.getMetadata()
     entity.postedAt = transaction.getPostedAt()
+    entity.reversedTransactionId = transaction.getReversedTransactionId() ?? null
     entity.createdAt = transaction.getCreatedAt()
     entity.updatedAt = transaction.getUpdatedAt()
     entity.deletedAt = transaction.getDeletedAt() ?? null
@@ -44,6 +45,7 @@ export class TransactionTypeOrmMapper {
       reference: transaction.reference ?? undefined,
       metadata: transaction.metadata ?? {},
       postedAt: new Date(transaction.postedAt),
+      reversedTransactionId: transaction.reversedTransactionId ?? undefined,
       createdAt: new Date(transaction.createdAt),
       updatedAt: new Date(transaction.updatedAt),
       deletedAt: transaction.deletedAt ? new Date(transaction.deletedAt) : undefined,
