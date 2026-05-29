@@ -18,20 +18,25 @@ Owns the **account lifecycle**: opening an account and reading it and its availa
 src/accounts/
 ├── domain/
 │   ├── account-status.ts       — 'active' | 'frozen' | 'closed' (+ ACCOUNT_STATUSES)
-│   ├── entities/account.aggregate.ts   — AccountAggregate (create / buildExisting, throws on invalid)
+│   ├── entities/account.aggregate.ts   — AccountAggregate (create / buildExisting, throws on invalid; freeze/activate/close transition guards)
 │   ├── validators/account.validator.ts — one validateX() per field; throws InvalidEntityError
+│   ├── services/close-account.service.ts — CloseAccountService (FEAT-007; pure, no I/O — receives the ledger-recomputed balance)
 │   └── events/account-opened.event.ts  — AccountOpenedEvent (BaseDomainEvent)
 ├── application/                 — FRAMEWORK-FREE (no NestJS imports)
-│   ├── usecases/                — OpenAccount / GetAccount / GetBalance (plain classes; ctor takes ports)
-│   ├── repositories/            — segregated PORTS: CreateAccountRepository, GetAccountRepository (no DI token)
+│   ├── usecases/                — OpenAccount / GetAccount / GetBalance / FreezeAccount / ActivateAccount / CloseAccount (plain classes; ctor takes ports)
+│   ├── repositories/            — segregated PORTS: CreateAccountRepository, GetAccountRepository, UpdateAccountRepository (no DI token)
+│   ├── ports/                   — LedgerBalanceReader (FEAT-007; accounts→ledger ACL)
 │   ├── mappers/                 — AccountUseCaseMapper (domain → AccountDto)
 │   ├── handlers/                — OnTransactionPostedHandler (FEAT-003; swallow-and-log on cache failure)
-│   └── errors/                  — AccountNotFoundError (UseCaseError, → 404); OptimisticLockError (DomainError, caught by handler)
+│   └── errors/                  — AccountNotFoundError (UseCaseError, → 404); OptimisticLockError (DomainError, caught by handler); AccountNotClosableError (UseCaseError, → 422)
 └── infrastructure/              — WHERE NESTJS LIVES
-    ├── accounts.module.ts       — NestJS module; composes the providers below
+    ├── accounts.module.ts       — NestJS module; composes the providers below; imports PostingTypeOrmEntity (read-only) for the LedgerBalanceReader ACL
+    ├── acl/                     — LedgerBalanceReaderTypeOrm (reads ledger postings read-only)
     ├── provider/
     │   ├── usecases/            — Symbol token + useFactory(...) per use case
-    │   └── repositories/        — Symbol token + useClass per repository port
+    │   ├── repositories/        — Symbol token + useClass per repository port
+    │   ├── handlers/            — Symbol token + factory for the cross-context handler
+    │   └── acl/                 — Symbol token + useClass for the LedgerBalanceReader ACL
     ├── typeorm/                 — AccountTypeOrmEntity + bidirectional mapper + per-op repositories
     └── http/                    — AccountController (injects use cases via @Inject token) + request DTO
 ```

@@ -6,6 +6,7 @@ import {
 } from '../../domain/entities/transaction.aggregate'
 import { TransactionPostedEvent } from '../../domain/events/transaction-posted.event'
 import type { PostingDirection } from '../../domain/posting-direction'
+import { AccountNotActiveError } from '../errors/account-not-active.error'
 import { TransactionAccountNotFoundError } from '../errors/transaction-account-not-found.error'
 import {
   type TransactionDto,
@@ -32,8 +33,9 @@ export namespace PostTransaction {
  * Posts a balanced double-entry transaction (REQ-006).
  *
  * Framework-agnostic (ADR-0005). Orchestration:
- * 1. Resolve each posting's currency from its account via the `AccountLookup`
- *    port (cross-context ACL) — missing account → 404.
+ * 1. Resolve each posting's currency + `status` from its account via the
+ *    `AccountLookup` port (cross-context ACL) — missing account → 404; a
+ *    non-`active` referenced account → 422 (FEAT-007, ADR-0010 / REQ-006).
  * 2. Build `TransactionAggregate` — the validator throws (422) if it is not
  *    balanced, has < 2 postings, or its accounts don't share a currency
  *    (each posting's currency is its account's, so a multi-currency set of
@@ -58,6 +60,9 @@ export class PostTransactionUseCase extends CommandUseCase<
       const account = await this.accountLookup.findById(posting.accountId)
       if (!account) {
         throw new TransactionAccountNotFoundError(posting.accountId)
+      }
+      if (account.status !== 'active') {
+        throw new AccountNotActiveError(posting.accountId, account.status)
       }
       enriched.push({
         accountId: posting.accountId,
