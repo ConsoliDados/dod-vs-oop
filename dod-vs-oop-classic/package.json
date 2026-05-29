@@ -24,7 +24,8 @@
     "check": "biome check src tests && pnpm typecheck",
     "check:fix": "biome check --write src tests && pnpm typecheck",
     "typecheck": "tsc --noEmit",
-    "clean": "rm -rf dist coverage .tsbuildinfo"
+    "clean": "rm -rf dist coverage .tsbuildinfo",
+    "smoke": "pnpm build && bash ../scripts/run-smoke.sh"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",

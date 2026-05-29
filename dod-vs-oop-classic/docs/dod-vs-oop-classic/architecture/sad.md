@@ -108,6 +108,23 @@ Balance has **two representations with distinct rules — the cache overwrites, 
 
 Current balance = **latest snapshot + Σ(postings after its `throughSeq`)**. Consolidation — producing a new snapshot as-of T — is a **domain service** (`ConsolidateAccountBalance`) because it spans `accounts` + `ledger`; it is idempotent and double-count-guarded by `throughSeq`. Open period → postings authoritative, balance derived; closed/archived period → the snapshot is the retained authority (cold-storage tiering is forward-looking, ADR-0006). The thin consolidation is also the study's honest CPU-bound contrast point (fold-over-postings vs the DOD side's SoA).
 
+### 5.7 HTTP resource surface
+
+The application exposes its functionality as an HTTP API on `:3000` (Express adapter, NestJS). This section documents only the **top-level resource surface** — the URL-to-domain mapping for **named-behavior endpoints** (closure, reversal, consolidation, freeze, activate, posting list, etc.) lives in each context's `sdds/sdd-<context>.md` §3 because that mapping is a tactical, per-context decision.
+
+| Resource (top-level) | Owning context | Purpose |
+|----------------------|----------------|---------|
+| `/accounts` | `accounts` | account lifecycle (open, read), balance reads, and account-scoped named-behavior subresources |
+| `/transactions` | `ledger` | post double-entry transactions and their named-behavior subresources |
+| `/reconciliation/batches` | `reconciliation` | submit reconciliation batches (post-EPIC-002) |
+
+**Status code mapping** is centralised in `shared/infrastructure/http/domain-exception.filter.ts` (ADR-0002):
+- `DomainError` (invalid VO / entity / identifier) → **422** with `{ code: 'VALIDATION_ERROR', message, fields }`
+- `UseCaseError` with a `*_NOT_FOUND` code → **404**; other `UseCaseError`s → **422**
+- `HttpException` (framework) → its own status; anything else → **500**
+
+The SRS (§5.1) defers to this section for the URL surface and to each SDD §3 for the per-context named-behavior endpoint table. Keep the resource list above stable: a new top-level resource is an architectural change (SAD-level); a new named-behavior subresource within an existing context is a tactical change (SDD-level).
+
 ## 6. Dataflow examples
 
 **Post a transaction (REQ-006) → balance update:**
