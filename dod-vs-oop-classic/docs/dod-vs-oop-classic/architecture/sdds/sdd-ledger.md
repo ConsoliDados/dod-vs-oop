@@ -56,8 +56,9 @@ Framework-free plain classes; throw-based (ADR-0002); NestJS wiring in
 |-----------|-------|--------|-----------------|
 | `PostTransactionUseCase` | `{ reference?, metadata?, postings: [{ accountId, amountCents, direction }] }` | `TransactionDto` (201) | `TransactionAccountNotFoundError` → 404; `InvalidEntityError` (unbalanced / <2 postings / multi-currency) → 422; `AccountNotActiveError` (referenced account is `frozen`/`closed`, FEAT-007) → 422 (REQ-006 *active*) |
 | `ReverseTransactionUseCase` (FEAT-004) | `{ id }` (the original's id) | `TransactionDto` (201) — the reversal, carrying `reversedTransactionId` | `TransactionNotFoundError` → 404; `TransactionAccountNotFoundError` → 404 (a posting's account vanished); `AccountNotActiveError` → 422 (any referenced account is non-`active`); `InvalidEntityError` → 422 (unreachable in practice — the validator passes on the mirror of a valid original) |
+| `ListPostingsUseCase` (FEAT-005) | `{ accountId, from?, to?, limit?, cursor? }` | `{ items: PostingListItem[], nextCursor?: string }` (200) | `TransactionAccountNotFoundError` → 404; `InvalidEntityError` → 422 (`limit ∉ [1,200]`, malformed `from`/`to`, `from > to`); `InvalidCursorError` → 422 |
 
-HTTP (`TransactionController`): `POST /transactions` (SRS input `{ accountId, amount, direction }`, converted to signed at the boundary); **`POST /transactions/:id/reversals`** (FEAT-004 — named-behavior subresource; produces a new mirror transaction; 201 with the reversal's DTO).
+HTTP: `POST /transactions` + `POST /transactions/:id/reversals` (FEAT-002/004 — `TransactionController`); **`GET /accounts/:id/postings?from=&to=&limit=&cursor=`** (FEAT-005 — `AccountPostingsController` in `ledger/infrastructure/http/`; URL prefix doesn't dictate context ownership).
 
 ## 4. Invariants
 
@@ -76,12 +77,14 @@ HTTP (`TransactionController`): `POST /transactions` (SRS input `{ accountId, am
 - Application: `TransactionAccountNotFoundError extends UseCaseError` (code `ACCOUNT_NOT_FOUND`) → **404** via the filter's `*_NOT_FOUND` convention.
 - Application: `AccountNotActiveError extends UseCaseError` (code `ACCOUNT_NOT_ACTIVE`, FEAT-007) → **422**. Raised when `AccountLookup` reports a non-`active` referenced account (REQ-006 *active* precondition; ADR-0010). **Reused** by `ReverseTransactionUseCase` — REQ-006 applies uniformly to the reversal post (ADR-0011 §4, gate 2026-05-29).
 - Application: `TransactionNotFoundError extends UseCaseError` (code `TRANSACTION_NOT_FOUND`, FEAT-004) → **404** via the filter's `*_NOT_FOUND` convention. Raised by `ReverseTransactionUseCase` when the original id does not exist.
+- Application: `InvalidCursorError extends UseCaseError` (code `INVALID_CURSOR`, FEAT-005) → **422**. Raised by `decodeCursor` when the list-postings cursor is malformed.
 
 ## 6. Ports / external dependencies
 
 - **`AccountLookup` port** (`application/ports/`) — cross-context read; returns the local `AccountView { id, currency, status }` (FEAT-007 added `status`; the status union is mirrored locally as `AccountLookupStatus` — no `accounts/domain` import). Implemented by `AccountLookupTypeOrm` (ACL) reading the `accounts` table read-only — the single place ledger infra touches the accounts persistence entity. `PostTransactionUseCase` uses `status` to reject (422) a posting to a non-`active` account (REQ-006, ADR-0010).
 - **`CreateTransactionRepository` port** (segregated) — atomic insert of the transaction + postings (one `DataSource.transaction`); returns the rehydrated aggregate with DB-assigned `sequence`. Bound via Symbol token in `infrastructure/provider/repositories/`. Reused verbatim by `ReverseTransactionUseCase` — a reversal is a normal posted transaction.
 - **`GetTransactionRepository` port** (segregated, FEAT-004) — read a transaction by id, rehydrated with its postings in `sequence` order. Today's only consumer is `ReverseTransactionUseCase` (loads the original before mirroring). Returns `null` when absent / soft-deleted.
+- **`ListPostingsRepository` port** (segregated, query-side, FEAT-005) — `list({ accountId, from?, to?, limit, cursor? })` returns postings ordered by `(postedAt ASC, sequence ASC)` with an opaque cursor (`base64(postedAt.toISOString() + '|' + sequence)`). Pure read: no events, no domain mutation. CQRS-flavored split — the write repo stays untouched.
 - **Persistence:** `TransactionTypeOrmEntity` (`transactions` — adds nullable `reversedTransactionId VARCHAR(36)` for FEAT-004) + `PostingTypeOrmEntity` (`postings`, `sequence` PK = monotonic order, signed `amountCents bigint`) + bidirectional `TransactionTypeOrmMapper`. Stack per ADR-0001.
 - **Events:** publishes `TransactionPostedEvent` (plain-data `entries` `{ accountId, amountCents, currency, sequence }`, ADR-0008) via the `EventBus` port — built by `PostTransactionUseCase` **or** `ReverseTransactionUseCase` from the **persisted** postings, so each entry carries its DB `sequence`. The reversal's entries carry **negated** signed cents — the existing FEAT-003 `OnTransactionPostedHandler` folds them with no special case.
 - **HTTP:** `TransactionController` (`POST /transactions`, `POST /transactions/:id/reversals`); `PostTransactionRequest` DTO (no class-validator); the reversal endpoint has no body (the id is in the URL).
@@ -90,6 +93,6 @@ HTTP (`TransactionController`): `POST /transactions` (SRS input `{ accountId, am
 
 - ✅ Reflect balance on `accounts` via the `OnTransactionPostedHandler` (FEAT-003, done) — `accounts` subscribes to `TransactionPosted`; ADR-0008 added `sequence` to the payload so the consumer needn't read ledger tables.
 - ✅ Reverse a transaction — `POST /transactions/:id/reversals` (FEAT-004, REQ-007, ADR-0011, done): mirror postings via `TransactionAggregate.reverseOf`, one-way `reversedTransactionId` link on the reversal, original never mutated, REQ-006 *active* enforced uniformly, reversal flows through `TransactionPosted` so the cache update reuses FEAT-003 verbatim. Reverse-of-a-reversal allowed; idempotency keys forward-looking.
-- List postings — `GET /accounts/:id/postings?from=&to=&limit=` (FEAT-005, REQ-008); a query repository over `postings`.
+- ✅ List postings — `GET /accounts/:id/postings?from=&to=&limit=&cursor=` (FEAT-005, REQ-008, done): cursor-based pagination over `(postedAt, sequence)`; account 404 via `AccountLookup`; window + `limit` (1..200, default 50) validated in the use case so any caller inherits the rule.
 - The **signed / credit-positive convention** is a candidate ADR once the cross-implementation conformance suite lands (the DOD side must match for byte-identical JSON, NFR-CORRECT-001).
 - `sequence` monotonicity relies on sqlite `INTEGER PRIMARY KEY`; revisit if the persistence/concurrency model changes.

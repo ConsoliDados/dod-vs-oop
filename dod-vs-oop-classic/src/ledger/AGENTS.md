@@ -27,17 +27,21 @@ src/ledger/
 ├── application/                       — FRAMEWORK-FREE (no NestJS)
 │   ├── usecases/post-transaction.usecase.ts — plain class; ctor takes ports
 │   ├── usecases/reverse-transaction.usecase.ts — FEAT-004; load → active guard → reverseOf → insert → publish
+│   ├── usecases/list-postings.usecase.ts — FEAT-005; validates limit/window/cursor, 404 via AccountLookup
+│   ├── cursor.ts                     — FEAT-005 base64 codec + InvalidCursorError (→ 422)
 │   ├── ports/account-lookup.port.ts   — cross-context read port (ACL target; carries status FEAT-007)
 │   ├── repositories/create-transaction.repository.ts — segregated port (atomic write)
 │   ├── repositories/get-transaction.repository.ts    — FEAT-004 segregated read port
+│   ├── repositories/list-postings.repository.ts      — FEAT-005 segregated query port (cursor + window)
 │   ├── mappers/transaction.usecase.mapper.ts         — DTO carries optional reversedTransactionId
-│   └── errors/                       — TransactionAccountNotFoundError (→ 404), AccountNotActiveError (→ 422), TransactionNotFoundError (→ 404)
+│   ├── mappers/posting-list.mapper.ts                — PostingListItem projection (FEAT-005)
+│   └── errors/                       — TransactionAccountNotFoundError (→ 404), AccountNotActiveError (→ 422), TransactionNotFoundError (→ 404), InvalidCursorError (→ 422)
 └── infrastructure/                    — WHERE NESTJS LIVES
     ├── ledger.module.ts
     ├── provider/{usecases,repositories,acl}/*.provider.ts — Symbol token + binding each
     ├── typeorm/{entities,mappers,repositories}/...        — Transaction + Posting tables; atomic insert + by-id read
     ├── acl/account-lookup.typeorm.ts  — reads the accounts table read-only (the one cross-infra touch)
-    └── http/{controllers,dtos}/...    — TransactionController (POST /transactions, POST /transactions/:id/reversals)
+    └── http/{controllers,dtos}/...    — TransactionController (POST /transactions, POST /transactions/:id/reversals); AccountPostingsController (GET /accounts/:id/postings)
 ```
 
 ## Commands
