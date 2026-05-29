@@ -1,0 +1,91 @@
+name: CI — dod-vs-oop-classic
+
+on:
+  push:
+    branches: [main, dev, 'feat/**', 'chore/**', 'docs/**']
+    paths:
+      - 'dod-vs-oop-classic/**'
+      - 'scripts/**'
+      - '.github/workflows/ci-dod-vs-oop-classic.yml'
+  pull_request:
+    branches: [main, dev, 'feat/**']
+    paths:
+      - 'dod-vs-oop-classic/**'
+      - 'scripts/**'
+      - '.github/workflows/ci-dod-vs-oop-classic.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-classic-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: dod-vs-oop-classic
+
+jobs:
+  lint-typecheck-test:
+    name: Lint + typecheck + tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          # Node 22.6+ strips TS types natively (used by the smoke harness).
+          node-version: '22'
+          cache: 'pnpm'
+          cache-dependency-path: dod-vs-oop-classic/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Biome (lint + format check)
+        run: pnpm lint
+
+      - name: TypeScript (typecheck)
+        run: pnpm typecheck
+
+      - name: Tests (Vitest)
+        run: pnpm test
+
+  smoke:
+    name: Smoke (SRS conformance harness)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: lint-typecheck-test
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+          cache-dependency-path: dod-vs-oop-classic/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # `pnpm smoke` builds dist/ and runs the shared examples/scripts/run-smoke.sh
+      # wrapper, which boots the server, waits for the port, runs the smoke
+      # harness, and tears the server down. Exits non-zero on any scenario
+      # failure — the job fails the PR.
+      - name: Smoke harness
+        run: pnpm smoke
