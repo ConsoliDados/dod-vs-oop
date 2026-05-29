@@ -13,19 +13,23 @@ import {
   ON_TRANSACTION_POSTED_HANDLER,
   onTransactionPostedHandlerProvider,
 } from './provider/handlers/on-transaction-posted.handler.provider'
+import { appendBalanceSnapshotRepositoryProvider } from './provider/repositories/append-balance-snapshot.provider'
 import { createAccountRepositoryProvider } from './provider/repositories/create-account.provider'
 import { getAccountRepositoryProvider } from './provider/repositories/get-account.provider'
+import { getLatestBalanceSnapshotRepositoryProvider } from './provider/repositories/get-latest-balance-snapshot.provider'
 import { updateAccountRepositoryProvider } from './provider/repositories/update-account.provider'
 import { activateAccountUseCaseProvider } from './provider/usecases/activate-account.provider'
 import { closeAccountUseCaseProvider } from './provider/usecases/close-account.provider'
+import { consolidateAccountBalanceUseCaseProvider } from './provider/usecases/consolidate-account-balance.provider'
 import { freezeAccountUseCaseProvider } from './provider/usecases/freeze-account.provider'
 import { getAccountUseCaseProvider } from './provider/usecases/get-account.provider'
 import { getBalanceUseCaseProvider } from './provider/usecases/get-balance.provider'
 import { openAccountUseCaseProvider } from './provider/usecases/open-account.provider'
 import { AccountTypeOrmEntity } from './typeorm/entities/account.typeorm.entity'
+import { BalanceSnapshotTypeOrmEntity } from './typeorm/entities/balance-snapshot.typeorm.entity'
 
 /**
- * Accounts bounded context (REQ-001/002/003, REQ-012/013).
+ * Accounts bounded context (REQ-001/002/003, REQ-012/013, FEAT-006).
  *
  * The NestJS module lives inside `infrastructure/` so the framework is fully
  * encapsulated in the infra layer of the vertical slice: domain + application
@@ -40,20 +44,34 @@ import { AccountTypeOrmEntity } from './typeorm/entities/account.typeorm.entity'
  * `LedgerBalanceReaderTypeOrm` ACL can SUM the postings table when
  * `CloseAccountUseCase` recomputes the balance for closure (ADR-0010, ADR-0009
  * distribution seam — single accounts→ledger infra touch).
+ *
+ * FEAT-006: owns `BalanceSnapshotTypeOrmEntity` (append-only) for the
+ * consolidated balance audit trail (ADR-0006). The `LedgerBalanceReader` ACL
+ * now returns `{ balance, throughSeq }` — single source of "ledger snapshot
+ * truth" for both close and consolidate paths.
  */
 @Module({
-  imports: [TypeOrmModule.forFeature([AccountTypeOrmEntity, PostingTypeOrmEntity])],
+  imports: [
+    TypeOrmModule.forFeature([
+      AccountTypeOrmEntity,
+      PostingTypeOrmEntity,
+      BalanceSnapshotTypeOrmEntity,
+    ]),
+  ],
   controllers: [AccountController],
   providers: [
     createAccountRepositoryProvider,
     getAccountRepositoryProvider,
     updateAccountRepositoryProvider,
+    appendBalanceSnapshotRepositoryProvider,
+    getLatestBalanceSnapshotRepositoryProvider,
     openAccountUseCaseProvider,
     getAccountUseCaseProvider,
     getBalanceUseCaseProvider,
     freezeAccountUseCaseProvider,
     activateAccountUseCaseProvider,
     closeAccountUseCaseProvider,
+    consolidateAccountBalanceUseCaseProvider,
     ledgerBalanceReaderProvider,
     onTransactionPostedHandlerProvider,
   ],

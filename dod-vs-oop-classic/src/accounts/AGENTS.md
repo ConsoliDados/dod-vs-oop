@@ -20,13 +20,15 @@ src/accounts/
 │   ├── account-status.ts       — 'active' | 'frozen' | 'closed' (+ ACCOUNT_STATUSES)
 │   ├── entities/account.aggregate.ts   — AccountAggregate (create / buildExisting, throws on invalid; freeze/activate/close transition guards)
 │   ├── validators/account.validator.ts — one validateX() per field; throws InvalidEntityError
+│   ├── value-objects/balance-snapshot.ts — BalanceSnapshot (immutable; FEAT-003 type, FEAT-006 persistence)
 │   ├── services/close-account.service.ts — CloseAccountService (FEAT-007; pure, no I/O — receives the ledger-recomputed balance)
+│   ├── services/consolidate-account-balance.service.ts — ConsolidateAccountBalance (FEAT-006; pure, no I/O — idempotent by throughSeq)
 │   └── events/account-opened.event.ts  — AccountOpenedEvent (BaseDomainEvent)
 ├── application/                 — FRAMEWORK-FREE (no NestJS imports)
-│   ├── usecases/                — OpenAccount / GetAccount / GetBalance / FreezeAccount / ActivateAccount / CloseAccount (plain classes; ctor takes ports)
+│   ├── usecases/                — OpenAccount / GetAccount / GetBalance / FreezeAccount / ActivateAccount / CloseAccount / ConsolidateAccountBalance (plain classes; ctor takes ports)
 │   ├── repositories/            — segregated PORTS: CreateAccountRepository, GetAccountRepository, UpdateAccountRepository (no DI token)
-│   ├── ports/                   — LedgerBalanceReader (FEAT-007; accounts→ledger ACL)
-│   ├── mappers/                 — AccountUseCaseMapper (domain → AccountDto)
+│   ├── ports/                   — LedgerBalanceReader (accounts→ledger ACL; FEAT-007/006), AppendBalanceSnapshotRepository (FEAT-006), GetLatestBalanceSnapshotRepository (FEAT-006)
+│   ├── mappers/                 — AccountUseCaseMapper (domain → AccountDto); BalanceSnapshotUseCaseMapper (FEAT-006)
 │   ├── handlers/                — OnTransactionPostedHandler (FEAT-003; swallow-and-log on cache failure)
 │   └── errors/                  — AccountNotFoundError (UseCaseError, → 404); OptimisticLockError (DomainError, caught by handler); AccountNotClosableError (UseCaseError, → 422)
 └── infrastructure/              — WHERE NESTJS LIVES
@@ -37,7 +39,7 @@ src/accounts/
     │   ├── repositories/        — Symbol token + useClass per repository port
     │   ├── handlers/            — Symbol token + factory for the cross-context handler
     │   └── acl/                 — Symbol token + useClass for the LedgerBalanceReader ACL
-    ├── typeorm/                 — AccountTypeOrmEntity + bidirectional mapper + per-op repositories
+    ├── typeorm/                 — AccountTypeOrmEntity + BalanceSnapshotTypeOrmEntity (append-only) + bidirectional mappers + per-op repositories (incl. append-balance-snapshot + get-latest-balance-snapshot)
     └── http/                    — AccountController (injects use cases via @Inject token) + request DTO
 ```
 

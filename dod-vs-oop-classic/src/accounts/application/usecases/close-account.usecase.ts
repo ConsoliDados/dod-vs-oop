@@ -44,8 +44,11 @@ export class CloseAccountUseCase extends CommandUseCase<CloseAccount.Input, Clos
     if (!account) {
       throw new AccountNotFoundError(input.id)
     }
-    const ledgerBalance = await this.ledgerBalanceReader.balanceOf(input.id, account.getCurrency())
-    this.closeAccountService.close(account, ledgerBalance)
+    const { balance } = await this.ledgerBalanceReader.balanceAndThroughSeqOf(
+      input.id,
+      account.getCurrency(),
+    )
+    this.closeAccountService.close(account, balance)
     await this.updateAccount.update(account)
     return AccountUseCaseMapper.toDto(account)
   }
