@@ -55,4 +55,33 @@ describe('AccountValidator', () => {
       ),
     ).toThrow(InvalidEntityError)
   })
+
+  it('rejects a negative lastPostedSeq', () => {
+    try {
+      AccountAggregate.buildExisting(snapshot({ lastPostedSeq: -1 }))
+      expect.fail('should have thrown')
+    } catch (err) {
+      expect(err).toBeInstanceOf(InvalidEntityError)
+      const offending = (err as InvalidEntityError).errors.map((e) => e.attribute)
+      expect(offending).toContain('lastPostedSeq')
+    }
+  })
+
+  it('rejects a non-integer lastPostedSeq', () => {
+    expect(() => AccountAggregate.buildExisting(snapshot({ lastPostedSeq: 1.5 }))).toThrow(
+      InvalidEntityError,
+    )
+  })
+
+  it('rejects a whitespace-only ownerId on buildExisting (mirrors create())', () => {
+    expect(() => AccountAggregate.buildExisting(snapshot({ ownerId: '   ' }))).toThrow(
+      InvalidEntityError,
+    )
+  })
+
+  it('rejects a non-integer version on buildExisting', () => {
+    expect(() => AccountAggregate.buildExisting(snapshot({ version: 1.5 }))).toThrow(
+      InvalidEntityError,
+    )
+  })
 })

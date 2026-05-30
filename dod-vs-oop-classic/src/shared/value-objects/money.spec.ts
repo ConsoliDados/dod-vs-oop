@@ -85,10 +85,79 @@ describe('Money (integer minor units)', () => {
       expect(() => Money.fromCents(100, 'BRL').divide(0)).toThrow(/divide money by zero/)
     })
 
-    it('THROWS on a currency mismatch', () => {
+    it('THROWS on a currency mismatch (add)', () => {
       const a = Money.fromCents(1000, 'USD')
       const b = Money.fromCents(500, 'BRL')
       expect(() => a.add(b)).toThrow(/different currencies/)
+    })
+
+    it('THROWS on a currency mismatch (subtract / compareTo / isGreaterThan / isLessThan)', () => {
+      const a = Money.fromCents(1000, 'USD')
+      const b = Money.fromCents(500, 'BRL')
+      expect(() => a.subtract(b)).toThrow(/different currencies/)
+      expect(() => a.compareTo(b)).toThrow(/different currencies/)
+      expect(() => a.isGreaterThan(b)).toThrow(/different currencies/)
+      expect(() => a.isLessThan(b)).toThrow(/different currencies/)
+    })
+
+    it('isEqual is FALSE (not a throw) across different currencies', () => {
+      // Equality is a query, not an arithmetic op — different currencies are
+      // simply not equal. Operating on them is what's forbidden.
+      const a = Money.fromCents(1000, 'USD')
+      const b = Money.fromCents(1000, 'BRL')
+      expect(a.isEqual(b)).toBe(false)
+    })
+
+    it('multiply by zero yields zero in the same currency', () => {
+      const zero = Money.fromCents(1234, 'BRL').multiply(0)
+      expect(zero.getCents()).toBe(0)
+      expect(zero.getCurrency()).toBe('BRL')
+    })
+
+    it('multiply by a negative scalar flips the sign', () => {
+      expect(Money.fromCents(1000, 'BRL').multiply(-1).getCents()).toBe(-1000)
+      expect(Money.fromCents(-100, 'BRL').multiply(-1).getCents()).toBe(100)
+    })
+
+    it('abs returns the magnitude in the same currency', () => {
+      expect(Money.fromCents(-500, 'BRL').abs().getCents()).toBe(500)
+      expect(Money.fromCents(500, 'BRL').abs().getCents()).toBe(500)
+    })
+
+    it('negate flips the sign without changing currency', () => {
+      const negated = Money.fromCents(100, 'BRL').negate()
+      expect(negated.getCents()).toBe(-100)
+      expect(negated.getCurrency()).toBe('BRL')
+    })
+
+    it('isPositive / isNegative / isZero — boundary at zero', () => {
+      expect(Money.zero('BRL').isPositive()).toBe(false)
+      expect(Money.zero('BRL').isNegative()).toBe(false)
+      expect(Money.zero('BRL').isZero()).toBe(true)
+      expect(Money.fromCents(1, 'BRL').isPositive()).toBe(true)
+      expect(Money.fromCents(-1, 'BRL').isNegative()).toBe(true)
+    })
+
+    it('compareTo returns sign of difference (same currency)', () => {
+      const big = Money.fromCents(200, 'BRL')
+      const small = Money.fromCents(100, 'BRL')
+      expect(big.compareTo(small)).toBeGreaterThan(0)
+      expect(small.compareTo(big)).toBeLessThan(0)
+      expect(small.compareTo(small)).toBe(0)
+    })
+  })
+
+  describe('safe-integer boundary (ADR-0004 documents the forward-looking policy)', () => {
+    it('accepts MAX_SAFE_INTEGER', () => {
+      expect(Money.fromCents(Number.MAX_SAFE_INTEGER, 'BRL').getCents()).toBe(
+        Number.MAX_SAFE_INTEGER,
+      )
+    })
+
+    it('THROWS at MAX_SAFE_INTEGER + 1 (no silent precision loss)', () => {
+      expect(() => Money.fromCents(Number.MAX_SAFE_INTEGER + 1, 'BRL')).toThrow(
+        InvalidValueObjectError,
+      )
     })
   })
 
@@ -100,6 +169,34 @@ describe('Money (integer minor units)', () => {
 
     it('formats a 0-dp currency without decimals', () => {
       expect(Money.fromCents(1000, 'JPY').format(false)).toBe('1,000')
+    })
+
+    it('exposes currency symbol for each supported currency', () => {
+      expect(Money.zero('BRL').getCurrencySymbol()).toBe('R$')
+      expect(Money.zero('USD').getCurrencySymbol()).toBe('$')
+      expect(Money.zero('EUR').getCurrencySymbol()).toBe('€')
+      expect(Money.zero('GBP').getCurrencySymbol()).toBe('£')
+      expect(Money.zero('JPY').getCurrencySymbol()).toBe('¥')
+    })
+
+    it('formats with explicit symbol toggle off', () => {
+      expect(Money.fromCents(-10050, 'USD').format(false)).toBe('-100.50')
+    })
+
+    it('formats negative amounts including the currency symbol', () => {
+      expect(Money.fromCents(-10050, 'BRL').format()).toBe('R$ -100.50')
+    })
+  })
+
+  describe('framework-mandated factories (playbook §2)', () => {
+    it('create is an alias of fromCents', () => {
+      expect(Money.create(1234, 'BRL').getCents()).toBe(1234)
+    })
+
+    it('buildExisting rehydrates an existing value', () => {
+      const rebuilt = Money.buildExisting({ cents: 1234, currency: 'BRL' })
+      expect(rebuilt.getCents()).toBe(1234)
+      expect(rebuilt.getCurrency()).toBe('BRL')
     })
   })
 })
