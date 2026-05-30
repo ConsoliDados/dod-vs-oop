@@ -137,4 +137,29 @@ describe('Account lifecycle (e2e)', () => {
     expect(res.status).toBe(422)
     expect(res.body.code).toBe('ACCOUNT_NOT_CLOSABLE')
   })
+
+  // ── 404 paths for each lifecycle endpoint
+  // (smoke covers READ paths; these prove the WRITE paths also 404 cleanly,
+  // closing the `if (!account)` branch in each use case)
+
+  it('PATCH /freeze on an unknown account → 404 ACCOUNT_NOT_FOUND', async () => {
+    const { randomUUID } = await import('node:crypto')
+    const res = await request(server).patch(`/accounts/${randomUUID()}/freeze`)
+    expect(res.status).toBe(404)
+    expect(res.body.code).toBe('ACCOUNT_NOT_FOUND')
+  })
+
+  it('PATCH /activate on an unknown account → 404 ACCOUNT_NOT_FOUND', async () => {
+    const { randomUUID } = await import('node:crypto')
+    const res = await request(server).patch(`/accounts/${randomUUID()}/activate`)
+    expect(res.status).toBe(404)
+    expect(res.body.code).toBe('ACCOUNT_NOT_FOUND')
+  })
+
+  it('POST /closure on an unknown account → 404 ACCOUNT_NOT_FOUND', async () => {
+    const { randomUUID } = await import('node:crypto')
+    const res = await request(server).post(`/accounts/${randomUUID()}/closure`)
+    expect(res.status).toBe(404)
+    expect(res.body.code).toBe('ACCOUNT_NOT_FOUND')
+  })
 })
