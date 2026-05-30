@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
- * Smoke harness for the dod-vs-oop study. Shared between
- * `dod-vs-oop-classic` and `dod-vs-oop-dod` — both implement the same SRS
+ * Smoke harness for the DDD comparative study. Shared between
+ * `ddd-classic` and `ddd-dod` — both implement the same SRS
  * and must satisfy the same scenarios (NFR-CORRECT-001 byte-identical JSON,
  * per-impl status mapping documented in each SDD).
  *
@@ -189,7 +189,7 @@ async function preflight(): Promise<void> {
 }
 
 async function run(): Promise<void> {
-  console.log(`${BOLD}${CYAN}Smoke — dod-vs-oop study${RESET}`)
+  console.log(`${BOLD}${CYAN}Smoke — DDD comparative study${RESET}`)
   console.log(`${DIM}target: ${BASE}${RESET}\n`)
   await preflight()
 

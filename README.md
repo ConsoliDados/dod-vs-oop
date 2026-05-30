@@ -1,12 +1,20 @@
-# DOD + DDD + Small Clean Arch in TypeScript
+# DDD comparative study — Classic, Modern, DOD
 
-A comparative study of two architectural approaches implementing the **same domain** (double-entry financial Ledger) with **deliberately different stacks**, reflecting real market choices. The stack confounder is explicit and addressed in the [FAQ.md](./FAQ.md).
+A comparative study of **three** implementations of the **same domain** (double-entry financial Ledger), each a different way to **materialise DDD**. All three share the same SRS (shared contract); each has its own SAD + SDDs (per-implementation tactical decisions).
 
-> **Status:** work in progress. Benchmarks and detailed docs will be populated as the projects advance. See [Status](#status) below.
+The three-way design isolates confounders so the comparison is honest:
 
-## The two projects
+| Pair | What it isolates |
+|---|---|
+| `ddd-classic` vs `ddd-modern` | **The stack** — architecture held constant (verbose-canonical DDD + Clean Arch), only the runtime / DB changes |
+| `ddd-modern` vs `ddd-dod` | **The architecture** — stack held constant (Bun + Elysia + Drizzle), only the materialisation changes |
+| `ddd-classic` vs `ddd-dod` | The brutal real-world comparison — both axes change at once (the "natural mode") |
 
-### [`dod-vs-oop-classic/`](./dod-vs-oop-classic/) — DDD + Clean Architecture (verbose-canonical)
+> **Status:** `ddd-classic` is implemented through EPIC-002 (ledger core). `ddd-modern` and `ddd-dod` are next. See [Status](#status) below.
+
+## The three projects
+
+### [`ddd-classic/`](./ddd-classic/) — DDD + Clean Architecture (verbose-canonical)
 
 **Stack:** NestJS + Express + TypeORM + Vitest. Verbose-canonical Evans/Vernon production style.
 
@@ -22,7 +30,13 @@ A comparative study of two architectural approaches implementing the **same doma
 
 **Honest foil, not strawman.** The style is derived from a real production implementation ([a real-world production ledger system](#)), which itself extends my own DDD core template. This is what many enterprise projects do today, done well.
 
-### [`dod-vs-oop-dod/`](./dod-vs-oop-dod/) — DDD + Data-Oriented Design + Clean Architecture Essentials
+### [`ddd-modern/`](./ddd-modern/) — Same DDD, modern stack (the bridge / fair fight)
+
+**Stack:** Bun + Elysia + Drizzle + Vitest. **Same** verbose-canonical DDD as `ddd-classic` — same aggregates, same validators, same throw-based discipline, same segregated repositories, same bidirectional mappers. Only the **infrastructure layer** is rewritten on the modern stack.
+
+This is the **fair-fight middle term**: it eats the stack-confounder hit so that comparing `ddd-modern` vs `ddd-dod` truly isolates the *architectural* change. Without it, any speedup of `ddd-dod` could be ambiguously attributed to "the better runtime" or "the better data layout".
+
+### [`ddd-dod/`](./ddd-dod/) — DDD + Data-Oriented Design + Clean Architecture Essentials
 
 **Stack:** Bun + Elysia + Biome + Vitest (or `bun:test`). TypeScript strict. Monorepo via Bun workspaces.
 
@@ -38,9 +52,11 @@ Application of the patterns consolidated in the study:
 - Vertical slice + RPA (Research / Plan / Act) per feature
 - Struct-of-Arrays + TypedArrays as opt-in for CPU-bound hot paths
 
-### About the stack confounder
+### About the stack confounder — addressed by the three-way design
 
-The stacks are deliberately different to reflect real market choices: NestJS + Express + TypeORM is where verbose DDD typically runs in production; Bun + Elysia + in-memory is the modern stack where the DOD approach makes the most sense. This means **part of the performance gain comes from the stack**, not architecture alone. The [FAQ.md](./FAQ.md) and [BENCHMARKS.md](./BENCHMARKS.md) separate the two contributions. Future work: a `dod-vs-oop-classic-modern/` variant keeping the verbose DDD style but on Bun + Elysia, to isolate the architectural variable.
+The "natural mode" comparison (`ddd-classic` vs `ddd-dod`) mixes two axes: NestJS + Express + TypeORM is where verbose DDD typically runs in production; Bun + Elysia + Drizzle is the modern stack where DOD makes the most sense. So part of any speedup would come from the stack, not architecture alone.
+
+`ddd-modern` exists exactly to disentangle the two. By keeping verbose-canonical DDD intact while moving to the modern stack, it lets you read the three-way result honestly: `ddd-classic → ddd-modern` shows what the *stack* alone buys you; `ddd-modern → ddd-dod` shows what the *architecture* alone buys you on top of that. The [FAQ.md](./FAQ.md) and [BENCHMARKS.md](./BENCHMARKS.md) report both deltas.
 
 ## Why this study exists
 
@@ -54,34 +70,51 @@ The chosen domain (**double-entry financial Ledger** — Account, Posting, Trans
 
 ## Stack per project
 
-### `dod-vs-oop-classic/`
-- **Node.js 20+** + **NestJS** + **Express**
+### `ddd-classic/`
+- **Node.js 22+** + **NestJS** + **Express**
 - **TypeORM** with sqlite `:memory:` (zero disk I/O in benchmarks)
 - **Vitest** with globals
 - **pnpm** as package manager
 - No `@consolidados/results` here — the foil uses typed exceptions (faithful to the style)
 
-### `dod-vs-oop-dod/`
+### `ddd-modern/`
+- **Bun** + **Elysia** + **Drizzle** (sqlite `:memory:`)
+- Same architecture as `ddd-classic`; only infrastructure changes
+- Throws (mirroring classic) — no `Result` here either
+
+### `ddd-dod/`
 - **Bun** — runtime + test runner
 - **Elysia** — HTTP
+- **Drizzle** with sqlite `:memory:` (parity with `ddd-modern` for the architecture-isolating comparison)
 - **TypeScript strict** + **Biome** — lint/format
 - **[`@consolidados/results`](https://github.com/consolidados/results)** — `Result`/`Ok`/`Err`/external `match` (my own library)
-- **In-memory `Map` repo** — zero DB variance in benchmarks
 
 ## How to run
 
-Each project has its own README with full instructions. Quick start:
+Each project has its own README with full instructions. Backend ports follow the project convention: **3000 is reserved for frontend; backends start at 3333** (`PORT` env override always available). Quick start:
 
 ```bash
-# OOP classic
-cd dod-vs-oop-classic
+# Classic — NestJS + TypeORM
+cd ddd-classic
 pnpm install
-pnpm dev    # boots Elysia/NestJS on :3000
+pnpm start:prod         # binds 3333 by default
 
-# DOD + Clean Arch Essentials
-cd dod-vs-oop-dod
+# Modern — Bun + Elysia + Drizzle, same architecture (when scaffolded)
+cd ddd-modern
 bun install
-bun run dev # boots Elysia on :3001
+bun run start           # binds 3334
+
+# DOD — Bun + Elysia + Drizzle, data-oriented (when scaffolded)
+cd ddd-dod
+bun install
+bun run start           # binds 3335
+```
+
+Conformance smoke (shared harness):
+
+```bash
+# In a separate shell, against any of the three:
+cd ddd-classic && PORT=3333 pnpm smoke
 ```
 
 Benchmark suite (after implementation):
@@ -106,7 +139,7 @@ This repo follows my development playbook for human + AI agents collaborating on
 - **Smart Constructors with Notification Pattern** instead of exceptions (DOD project only — the OOP project deliberately uses throw)
 - **`Result<T, E>` + external `match` helper** — never throws (DOD project only)
 
-The `dod-vs-oop-classic/` project uses its **own playbook** (verbose, Evans/Vernon style) to ensure the foil is faithful to traditional DDD, not strawmanned.
+The `ddd-classic/` project uses its **own playbook** (verbose, Evans/Vernon style) to ensure the foil is faithful to traditional DDD, not strawmanned.
 
 ### Fair-comparison guarantee
 
@@ -116,13 +149,15 @@ Benchmark fairness controls: pinned Bun/Node versions, same in-memory persistenc
 
 ## Status
 
-- [ ] Scaffold `dod-vs-oop-classic/`
-- [ ] Scaffold `dod-vs-oop-dod/`
-- [ ] Implement Project B (DOD reference) — slice by slice via RPA
-- [ ] Implement Project A (OOP foil) — mirroring B's endpoints and semantics
-- [ ] Conformance suite passing
+- [x] Scaffold `ddd-classic/`
+- [x] **EPIC-002 (ledger core)** in `ddd-classic/` — Account / Posting / Transaction / Balance / lifecycle / reversal / consolidation; 170 tests; smoke harness; sad-path catalogue
+- [ ] Scaffold `ddd-modern/`
+- [ ] Implement EPIC-002 in `ddd-modern/` — same architecture, modern stack
+- [ ] Scaffold `ddd-dod/`
+- [ ] Implement EPIC-002 in `ddd-dod/` — DOD + Clean Arch Essentials, `Result`-based
+- [ ] Conformance suite (NFR-CORRECT-001 byte-identical JSON across all three)
 - [ ] Benchmark harness + populated `BENCHMARKS.md`
-- [ ] `ARCHITECTURE.md` with real excerpts
+- [ ] `ARCHITECTURE.md` with real excerpts from each
 - [ ] `POST.md` extracted with real numbers
 
 ## Author
