@@ -1,7 +1,7 @@
-# Smoke harness — dod-vs-oop study
+# Smoke harness — DDD comparative study
 
-Shared harness for the comparative study (`dod-vs-oop-classic` + the
-forthcoming `dod-vs-oop-dod`). **Pure HTTP client.** Runs against an
+Shared harness for the comparative study (`ddd-classic` + the
+forthcoming `ddd-dod`). **Pure HTTP client.** Runs against an
 already-running target and asserts a numbered scenario sequence mapped 1:1
 to the shared `srs.md` (REQs + NFRs) and to each implementation's per-context
 SDD endpoints. Both implementations must satisfy it — that's the **shape**
@@ -20,12 +20,12 @@ The convention port for backends in this study is **`3333`**
 
 ```bash
 # shell 1 — boot the target
-cd examples/dod-vs-oop-classic
+cd examples/ddd-classic
 pnpm start:prod                       # listens on 3333 by default
 # or: PORT=3334 pnpm start:prod       # second backend; front owns 3000
 
 # shell 2 — run the harness
-cd examples/dod-vs-oop-classic
+cd examples/ddd-classic
 pnpm smoke                            # uses PORT=3333 or BASE_URL
 # or: BASE_URL=http://localhost:3334 pnpm smoke
 ```
@@ -59,7 +59,7 @@ wrapper script. The job pattern:
 - run: PORT=3333 pnpm smoke
 ```
 
-See `.github/workflows/ci-dod-vs-oop-classic.yml` for the actual steps.
+See `.github/workflows/ci-ddd-classic.yml` for the actual steps.
 
 ## What's covered (EPIC-002)
 

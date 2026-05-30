@@ -2,7 +2,7 @@
 
 > **Status: methodology defined, numbers pending.** The harness is built once both
 > implementations land; this document fixes *how* we measure so the results are fair,
-> reproducible, and honest. Decision record: ADR-0007 in `dod-vs-oop-classic`.
+> reproducible, and honest. Decision record: ADR-0007 in `ddd-classic`.
 
 ## Why four benchmarks (a 2×2 design)
 
