@@ -1,0 +1,52 @@
+name: CI — ddd-dod
+
+on:
+  push:
+    branches: [main, dev, 'feat/**', 'chore/**', 'docs/**']
+    paths:
+      - 'ddd-dod/**'
+      - 'scripts/**'
+      - '.github/workflows/ci-ddd-dod.yml'
+  pull_request:
+    branches: [main, dev, 'feat/**']
+    paths:
+      - 'ddd-dod/**'
+      - 'scripts/**'
+      - '.github/workflows/ci-ddd-dod.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-dod-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: ddd-dod
+
+jobs:
+  lint-typecheck-test:
+    name: Lint + typecheck + tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.6
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Biome (lint + format check)
+        run: bun run lint
+
+      - name: TypeScript (typecheck)
+        run: bun run typecheck
+
+      - name: Tests (bun:test)
+        run: bun test

@@ -1,0 +1,19 @@
+{
+  "name": "@ddd-dod/types",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./globals": "./src/globals.ts",
+    "./globals-types": {
+      "types": "./src/globals-types.d.ts"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "lint": "biome check ."
+  },
+  "dependencies": {
+    "@consolidados/results": "^0.5.0"
+  }
+}

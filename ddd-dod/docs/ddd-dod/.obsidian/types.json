@@ -1,0 +1,13 @@
+{
+  "types": {
+    "aliases": "aliases",
+    "cssclasses": "multitext",
+    "tags": "tags",
+    "status": "text",
+    "priority": "text",
+    "phase": "text",
+    "id": "text",
+    "depends-on": "multitext",
+    "blocks": "multitext"
+  }
+}
