@@ -1,0 +1,5 @@
+# Bun configuration.
+# Register the `@consolidados/results` globals (Ok/Err/Some/None/match) once
+# before any test runs, instead of a side-effect import in every test file.
+[test]
+preload = ["./test-setup.ts"]

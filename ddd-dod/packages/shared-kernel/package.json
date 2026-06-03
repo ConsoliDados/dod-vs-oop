@@ -1,0 +1,16 @@
+{
+  "name": "@ddd-dod/shared-kernel",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "lint": "biome check ."
+  },
+  "dependencies": {
+    "@ddd-dod/types": "workspace:*"
+  }
+}

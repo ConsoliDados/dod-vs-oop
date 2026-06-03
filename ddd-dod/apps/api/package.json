@@ -1,0 +1,22 @@
+{
+  "name": "@ddd-dod/api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bun --watch src/main.ts",
+    "start": "bun src/main.ts",
+    "typecheck": "tsc --noEmit",
+    "lint": "biome check ."
+  },
+  "dependencies": {
+    "@ddd-dod/accounts": "workspace:*",
+    "@ddd-dod/ledger": "workspace:*",
+    "@ddd-dod/platform": "workspace:*",
+    "@ddd-dod/reconciliation": "workspace:*",
+    "@ddd-dod/shared-kernel": "workspace:*",
+    "@ddd-dod/statements": "workspace:*",
+    "@ddd-dod/types": "workspace:*",
+    "elysia": "^1.4.28"
+  }
+}
