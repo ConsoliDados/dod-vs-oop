@@ -1,5 +1,4 @@
-import type { AppConfig, AppLogger, Clock, DbHandle } from "@ddd-dod/platform";
-import { token } from "@ddd-dod/platform";
+import { type clock, type config, type db, di, type logger } from "@ddd-dod/platform";
 
 /**
  * DI tokens for the cross-cutting platform dependencies. Only the composition
@@ -7,8 +6,8 @@ import { token } from "@ddd-dod/platform";
  * resolved values as parameters, never the container (ADR-0004).
  */
 export const Tokens = {
-  Config: token<AppConfig>("config"),
-  Logger: token<AppLogger>("logger"),
-  Clock: token<Clock>("clock"),
-  Db: token<DbHandle>("db"),
+  Config: di.token<config.AppConfig>("config"),
+  Logger: di.token<logger.AppLogger>("logger"),
+  Clock: di.token<clock.Clock>("clock"),
+  Db: di.token<db.DbHandle>("db"),
 } as const;

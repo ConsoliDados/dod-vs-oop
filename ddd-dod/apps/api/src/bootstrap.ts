@@ -1,11 +1,4 @@
-import {
-  type AppLogger,
-  type ConfigError,
-  type DiError,
-  formatConfigError,
-  formatDiError,
-  loadConfig,
-} from "@ddd-dod/platform";
+import { config, di, type logger } from "@ddd-dod/platform";
 import { createApp } from "./app";
 import { buildContainer } from "./composition-root";
 import { Tokens } from "./tokens";
@@ -13,22 +6,24 @@ import { Tokens } from "./tokens";
 export type Bootstrapped = {
   app: ReturnType<typeof createApp>;
   port: number;
-  logger: AppLogger;
+  logger: logger.AppLogger;
   /** Graceful teardown: runs the container's reverse-order disposers. */
   dispose: () => Promise<void>;
 };
 
-export type BootstrapError = { Config: { error: ConfigError } } | { Wiring: { error: DiError } };
+export type BootstrapError =
+  | { Config: { error: config.ConfigError } }
+  | { Wiring: { error: di.DiError } };
 
 export const BootstrapError = {
-  config: (error: ConfigError): BootstrapError => ({ Config: { error } }),
-  wiring: (error: DiError): BootstrapError => ({ Wiring: { error } }),
+  config: (error: config.ConfigError): BootstrapError => ({ Config: { error } }),
+  wiring: (error: di.DiError): BootstrapError => ({ Wiring: { error } }),
 };
 
 export const formatBootstrapError = (error: BootstrapError): string =>
   match(error, {
-    Config: (x) => formatConfigError(x.error),
-    Wiring: (x) => formatDiError(x.error),
+    Config: (e) => config.ConfigError.format(e.error),
+    Wiring: (e) => di.DiError.format(e.error),
   });
 
 /**
@@ -41,26 +36,26 @@ export const formatBootstrapError = (error: BootstrapError): string =>
 export function bootstrap(
   env: Record<string, string | undefined> = process.env,
 ): Result<Bootstrapped, BootstrapError> {
-  const configResult = loadConfig(env);
+  const configResult = config.load(env);
   if (configResult.isErr()) {
     return Err(BootstrapError.config(configResult.value()));
   }
-  const config = configResult.value();
+  const appConfig = configResult.value();
 
-  const container = buildContainer(config);
+  const container = buildContainer(appConfig);
 
   const loggerResult = container.resolve(Tokens.Logger);
   if (loggerResult.isErr()) {
     return Err(BootstrapError.wiring(loggerResult.value()));
   }
-  const logger = loggerResult.value();
+  const appLogger = loggerResult.value();
 
-  const app = createApp({ config });
+  const app = createApp({ config: appConfig });
 
   return Ok({
     app,
-    port: config.PORT,
-    logger,
+    port: appConfig.PORT,
+    logger: appLogger,
     dispose: () => container.dispose(),
   });
 }

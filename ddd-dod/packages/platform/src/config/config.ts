@@ -1,3 +1,4 @@
+import { defineError, type EnumValues } from "@ddd-dod/types";
 import { z } from "zod";
 
 /**
@@ -15,10 +16,44 @@ const ConfigSchema = z.object({
 
 export type AppConfig = Readonly<z.infer<typeof ConfigSchema>>;
 
-export type ConfigError = {
-  readonly type: "InvalidConfig";
-  readonly issues: z.ZodError["issues"];
-};
+/**
+ * One validation failure, **decoupled from the validator** (ADR-0008): a flat
+ * `path: message` pair, not `z.ZodIssue`. Swapping Zod for TypeBox touches only
+ * the mapping in {@link loadConfig}, never the {@link ConfigError} type or any
+ * consumer. `path` is dotted (`""` for the root).
+ */
+export type ValidationIssue = { readonly path: string; readonly message: string };
+
+const variants = {
+  invalidEnv: (issues: readonly ValidationIssue[]) => ({ InvalidEnv: { issues } }) as const,
+} as const;
+
+/**
+ * Config load error (ADR-0008). Carries the neutral {@link ValidationIssue} list
+ * plus its renderers (ADR-0009): `ConfigError.format` (Display, multi-line, one
+ * line per issue — for the composition root to log before exiting non-zero) and
+ * `ConfigError.serialize` (structured, for observability).
+ */
+export type ConfigError = EnumValues<typeof variants>;
+
+export const ConfigError = defineError(variants, {
+  format: (e: ConfigError) =>
+    match(e, {
+      InvalidEnv: (x) => {
+        const lines = x.issues.map((i) => `  - ${i.path === "" ? "(root)" : i.path}: ${i.message}`);
+        return `invalid configuration:\n${lines.join("\n")}`;
+      },
+    }),
+  serialize: (e: ConfigError) =>
+    match(e, {
+      InvalidEnv: (x) => ({ kind: "InvalidEnv", issues: x.issues }),
+    }),
+});
+
+/** Map Zod's native issues to the neutral {@link ValidationIssue} shape — the
+ *  single seam that knows about Zod (swap the validator here, nowhere else). */
+const toIssues = (error: z.ZodError): ValidationIssue[] =>
+  error.issues.map((i) => ({ path: i.path.map(String).join("."), message: i.message }));
 
 /**
  * Parse + validate config. Returns `Err` instead of throwing so the composition
@@ -31,20 +66,7 @@ export function loadConfig(
 ): Result<AppConfig, ConfigError> {
   const parsed = ConfigSchema.safeParse(env);
   if (!parsed.success) {
-    return Err({ type: "InvalidConfig", issues: parsed.error.issues });
+    return Err(ConfigError.invalidEnv(toIssues(parsed.error)));
   }
   return Ok(Object.freeze(parsed.data));
-}
-
-/**
- * Render a {@link ConfigError} as a human-readable, multi-line message for the
- * composition root to log before exiting non-zero — one line per Zod issue
- * (`path: message`). Keeps the boot failure legible instead of dumping raw issues.
- */
-export function formatConfigError(error: ConfigError): string {
-  const lines = error.issues.map((issue) => {
-    const path = issue.path.length > 0 ? issue.path.map(String).join(".") : "(root)";
-    return `  - ${path}: ${issue.message}`;
-  });
-  return `invalid configuration:\n${lines.join("\n")}`;
 }

@@ -1,12 +1,4 @@
-import {
-  type AppConfig,
-  type Container,
-  createContainer,
-  createInMemoryDb,
-  createLogger,
-  selectSink,
-  systemClock,
-} from "@ddd-dod/platform";
+import { clock, type config, db, di, logger } from "@ddd-dod/platform";
 import { Tokens } from "./tokens";
 
 /**
@@ -16,26 +8,26 @@ import { Tokens } from "./tokens";
  * passed positionally, so the container never leaks into application code
  * (ADR-0004).
  */
-export function buildContainer(config: AppConfig): Container {
-  const container = createContainer();
+export function buildContainer(appConfig: config.AppConfig): di.Container {
+  const container = di.createContainer();
 
-  container.registerValue(Tokens.Config, config);
+  container.registerValue(Tokens.Config, appConfig);
 
   // Logger + its sink, built eagerly so the sink is reachable for teardown
   // (flush + dispose on shutdown — FEAT-004 / FRD-002, ADR-0007).
-  const sink = selectSink({ nodeEnv: config.NODE_ENV });
-  const logger = createLogger({ level: config.LOG_LEVEL, sink, context: "api" });
-  container.registerValue(Tokens.Logger, logger);
+  const sink = logger.selectSink({ nodeEnv: appConfig.NODE_ENV });
+  const log = logger.create({ level: appConfig.LOG_LEVEL, sink, context: "api" });
+  container.registerValue(Tokens.Logger, log);
   container.onDispose(async () => {
     await sink.flush();
     await sink.dispose();
   });
 
-  container.registerValue(Tokens.Clock, systemClock);
+  container.registerValue(Tokens.Clock, clock.system);
 
-  const db = createInMemoryDb();
-  container.registerValue(Tokens.Db, db);
-  container.onDispose(() => db.close());
+  const database = db.createInMemory();
+  container.registerValue(Tokens.Db, database);
+  container.onDispose(() => database.close());
 
   return container;
 }

@@ -67,6 +67,20 @@ export type { CvGenerated, CvPublished, DomainEvent } from './domain/events'
 
 Anything not exported from `index.ts` is internal. Other packages import only from `<package>` (resolves to `index.ts`), never from `<package>/src/...`.
 
+### Namespace barrels — when a package owns several submodules
+
+When a package groups several distinct submodules (e.g. a `platform` package with `config`, `di`, `logger`, `db`, `clock`), prefer **ESM namespace barrels** over a flat re-export, so the call site shows which module a symbol belongs to:
+
+```ts
+// packages/platform/src/index.ts
+export * as config from './config'
+export * as di from './di'
+export * as logger from './logger'
+// consumer:  config.load(env) · di.createContainer() · config.ConfigError.format(e)
+```
+
+Conventions: **lowercase** namespace (the ESM idiom; the class-like errors inside stay PascalCase — `config.ConfigError`); drop a redundant module-name suffix at the surface via a **barrel alias** (`export { loadConfig as load }`), keeping the canonical, greppable name in source. This blocks `import { load }` (only `config.load` is reachable); `const { load } = config` is still possible at runtime — a convention to avoid (flag in review), not a hard barrier. Rejected alternatives: `export default {…}` (needs `exports` subpaths, renames poorly) and the TS `namespace` keyword (pre-ESM, not tree-shakeable). For a single-purpose package, the flat re-export above is fine.
+
 ## 4. Errors — `Result<T, E>` pattern, not exceptions
 
 TypeScript has no built-in `Result`; use a discriminated-union helper. Recommended: a small `Result<T, E>` library (e.g. `@consolidados/results`, neverthrow, or hand-rolled).
@@ -136,9 +150,13 @@ For errors that **carry data**, use an object-as-enum whose entries are factory 
 **Use object payloads with named fields** (`error.field`, `error.value`) — NOT positional tuples (`error.Required[0]`). Tag every variant with `type` and pattern-match on `error.type`.
 
 ```ts
-type FactoryReturns<T> = {
-  // biome-ignore lint/suspicious/noExplicitAny: infer each factory's return type
-  [K in keyof T]: T[K] extends (...args: any[]) => infer R ? R : never
+// Derive the union from the factory object. Use `never[]` params (NOT `any[]`):
+// it infers every factory's return type without an explicit-any lint or a
+// `biome-ignore`. The `: T[K]` fallback also admits bare-value variants
+// (`Foo: 'Foo'`) alongside factory variants. Host this helper in a shared types
+// package (e.g. `@<scope>/types`) so every context derives errors the same way.
+type EnumValues<T> = {
+  [K in keyof T]: T[K] extends (...args: never[]) => infer R ? R : T[K]
 }[keyof T]
 
 type DomainErrorLike = { readonly type: string } // breaks the InvalidEntity self-reference
@@ -160,7 +178,7 @@ export const DomainError = {
     return { type: 'Other', reason, details } as const
   },
 } as const
-export type DomainError = FactoryReturns<typeof DomainError>
+export type DomainError = EnumValues<typeof DomainError>
 
 // pattern-match on the tag, access named fields:
 function format(e: DomainError): string {
@@ -172,9 +190,47 @@ function format(e: DomainError): string {
 
 Host a shared `DomainError` in a foundational package (e.g. `packages/core`) so every context, service, and app validates the same way. Notes: type `errors` as `{ type: string }[]` (not the full union) to avoid a circular type alias; redact sensitive field values before putting them in an error.
 
+### Operational / port errors — `defineError` with bundled renderers
+
+Domain *validation* (above) is the **field-tagged, accumulated** encoding (`{ type, field }[]`, rolled up via `InvalidEntity`). Use-case / port / wiring outcomes are a different encoding: a closed, `match`-able set of **key-as-tag** variants (`{ NotRegistered: { token } }`), each carrying its own payload. Both are error-as-value (never throw); pick by job — accumulation vs a closed matchable set.
+
+For the operational encoding, fuse the variant constructors with **two renderers** on one object via a `defineError` helper (host it next to `EnumValues`). The signature *requires* both renderers, so no error ships without them; the union type is derived from the **variants alone**, so the renderers never leak into it.
+
+```ts
+type ErrorJson = { readonly kind: string } & Readonly<Record<string, unknown>>
+
+export function defineError<const V extends Record<string, string | ((...a: never[]) => string | object)>, E = EnumValues<V>>(
+  variants: V,
+  renderers: { format: (e: E) => string; serialize: (e: E) => ErrorJson },
+): Readonly<V & typeof renderers> {
+  return Object.freeze({ ...variants, ...renderers })
+}
+
+const variants = {
+  notRegistered: (token: string) => ({ NotRegistered: { token } }) as const,
+  factoryFailed: (token: string, cause: unknown) => ({ FactoryFailed: { token, cause } }) as const,
+} as const
+export type DiError = EnumValues<typeof variants>
+export const DiError = defineError(variants, {
+  // format = Display: human, one line, boot/CLI logs only
+  format: (e: DiError) => match(e, {
+    NotRegistered: (x) => `no provider for token "${x.token}"`,
+    FactoryFailed: (x) => `factory "${x.token}" failed: ${String(x.cause)}`,
+  }),
+  // serialize = structured: flat record for observability; cause stringified, never leaked raw
+  serialize: (e: DiError) => match(e, {
+    NotRegistered: (x) => ({ kind: 'NotRegistered', token: x.token }),
+    FactoryFailed: (x) => ({ kind: 'FactoryFailed', token: x.token, cause: String(x.cause) }),
+  }),
+})
+// DiError.notRegistered('db')  → construct;  DiError.format(e) / DiError.serialize(e) → render
+```
+
+**Two renderers, disjoint jobs** (the Rust `Display` vs `serde` split): `format` is human-readable Display for boot/CLI logs only — **never** an API body or a log-field value; `serialize` returns a structured `ErrorJson` (`{ kind, …safe fields }`) for observability — never a stringified blob. `ErrorJson` is deliberately **not** the logger's field type, so a pure-domain error never depends on the logger's vocabulary. Mapping a variant → HTTP `{ status, token, safe fields }` is a **route-boundary** concern (a `match` per variant at the handler), not a third renderer on the error.
+
 ## 6. Validation — Zod at boundaries
 
-Every public input that comes from outside the program (HTTP body, env vars, config files, IPC messages) goes through Zod first:
+Zod guards **external untrusted input** — HTTP body/params/query, env vars, config files, IPC messages. It does **not** guard a context reading its **own** persisted rows (sole writer + domain invariants + migrations are the source of truth; rows are typed interfaces, not re-parsed). "Validate at the boundary" means the *untrusted* boundary, not every deserialization (see ADR-0006 — relevant to read-hot-path perf too).
 
 ```ts
 import { z } from 'zod'
@@ -186,12 +242,19 @@ const CreateCvBodySchema = z.object({
 
 export type CreateCvBody = z.infer<typeof CreateCvBodySchema>
 
+// Keep the validator OUT of the error type: map Zod issues to a neutral shape at
+// the seam, so the error contract doesn't change if you swap Zod for TypeBox/etc.
+type ValidationIssue = { readonly path: string; readonly message: string }
+const toIssues = (e: z.ZodError): ValidationIssue[] =>
+  e.issues.map((i) => ({ path: i.path.map(String).join('.'), message: i.message }))
+
 // In the HTTP handler:
 const parsed = CreateCvBodySchema.safeParse(req.body)
-if (!parsed.success) return Err({ kind: 'validation', issues: parsed.error.issues })
+if (!parsed.success) return Err(ValidationError.invalid(toIssues(parsed.error)))
+//                              ^ a defineError (§5) carrying ValidationIssue[], NOT z.ZodIssue[]
 ```
 
-`.strict()` rejects unknown fields — equivalent to Rust's `#[serde(deny_unknown_fields)]`. Critical for security-relevant config.
+`.strict()` rejects unknown fields — equivalent to Rust's `#[serde(deny_unknown_fields)]`. Critical for security-relevant config. **Do not** store `parsed.error.issues` (a `z.ZodIssue[]`) in the error type — that couples every consumer to the validator library; map to the neutral `ValidationIssue` at the single seam shown above.
 
 ## 7. Aggregate root with rich documentation (DDD)
 

@@ -1,10 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import {
-  createLogger,
-  createOtlpLogSink,
-  type OtelLogData,
-  type OtelLogEmitter,
-} from "../src/logger";
+import { create, createOtlpLogSink, type OtelLogData, type OtelLogEmitter } from "../src/logger";
 
 function captureEmitter(): { records: OtelLogData[]; emitter: OtelLogEmitter } {
   const records: OtelLogData[] = [];
@@ -21,7 +16,7 @@ function captureEmitter(): { records: OtelLogData[]; emitter: OtelLogEmitter } {
 describe("createOtlpLogSink", () => {
   test("maps level to OTel severity, message to body, fields to attributes", () => {
     const { records, emitter } = captureEmitter();
-    const log = createLogger({ level: "debug", sink: createOtlpLogSink(emitter), context: "ctx" });
+    const log = create({ level: "debug", sink: createOtlpLogSink(emitter), context: "ctx" });
     log.warn("careful", { a: 1 });
     expect(records).toHaveLength(1);
     expect(records[0]?.severityNumber).toBe(13);
@@ -32,7 +27,7 @@ describe("createOtlpLogSink", () => {
 
   test("carries requestId from a child and flattens an error", () => {
     const { records, emitter } = captureEmitter();
-    const log = createLogger({ level: "info", sink: createOtlpLogSink(emitter) }).child({
+    const log = create({ level: "info", sink: createOtlpLogSink(emitter) }).child({
       requestId: "req-9",
     });
     log.error("boom", new Error("nope"));
@@ -48,7 +43,7 @@ describe("createOtlpLogSink", () => {
         throw new Error("transport down");
       },
     });
-    const log = createLogger({ level: "info", sink });
+    const log = create({ level: "info", sink });
     expect(() => log.info("still fine")).not.toThrow();
   });
 });

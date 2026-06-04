@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { createLogger, type LogRecord, type LogSink } from "../src/logger";
+import { create, type LogRecord, type LogSink } from "../src/logger";
 
 function captureSink(): { records: LogRecord[]; sink: LogSink } {
   const records: LogRecord[] = [];
@@ -18,7 +18,7 @@ function captureSink(): { records: LogRecord[]; sink: LogSink } {
 describe("createLogger", () => {
   test("drops records below the threshold, keeps the rest with fields", () => {
     const { records, sink } = captureSink();
-    const log = createLogger({ level: "info", sink, context: "t" });
+    const log = create({ level: "info", sink, context: "t" });
     log.debug("dropped");
     log.info("kept", { a: 1 });
     expect(records).toHaveLength(1);
@@ -28,14 +28,14 @@ describe("createLogger", () => {
 
   test("redacts sensitive field keys", () => {
     const { records, sink } = captureSink();
-    const log = createLogger({ level: "info", sink });
+    const log = create({ level: "info", sink });
     log.info("login", { password: "hunter2", user: "neo" });
     expect(records[0]?.fields).toEqual({ password: "[REDACTED]", user: "neo" });
   });
 
   test("child carries requestId without mutating the parent", () => {
     const { records, sink } = captureSink();
-    const base = createLogger({ level: "info", sink, context: "t" });
+    const base = create({ level: "info", sink, context: "t" });
     base.child({ requestId: "req-1" }).info("scoped");
     base.info("root");
     expect(records[0]?.requestId).toBe("req-1");

@@ -6,4 +6,4 @@ export {
   type Token,
   token,
 } from "./container";
-export { DiError, formatDiError } from "./errors";
+export { DiError } from "./errors";

@@ -1,1 +1,1 @@
-export { createInMemoryDb, type Db, type DbHandle } from "./db";
+export { createInMemoryDb as createInMemory, type Db, type DbHandle } from "./db";
