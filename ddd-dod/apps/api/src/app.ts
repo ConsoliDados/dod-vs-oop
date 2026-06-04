@@ -1,4 +1,4 @@
-import type { AppConfig } from "@ddd-dod/platform";
+import type { config } from "@ddd-dod/platform";
 import { Elysia } from "elysia";
 
 /**
@@ -8,7 +8,7 @@ import { Elysia } from "elysia";
  * `app.handle(new Request(...))`. Context routes mount here in EPIC-003; at
  * bootstrap only the health endpoint exists.
  */
-export function createApp(deps: { config: AppConfig }) {
+export function createApp(deps: { config: config.AppConfig }) {
   return new Elysia().get("/health", () => ({
     status: "ok" as const,
     service: "ddd-dod",

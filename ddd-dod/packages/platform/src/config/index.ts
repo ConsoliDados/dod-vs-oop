@@ -1,1 +1,1 @@
-export { type AppConfig, type ConfigError, formatConfigError, loadConfig } from "./config";
+export { type AppConfig, ConfigError, loadConfig as load, type ValidationIssue } from "./config";

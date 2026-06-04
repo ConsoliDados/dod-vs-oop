@@ -1,4 +1,5 @@
 import type { PublishedEvent } from "@ddd-dod/shared-kernel";
+import { defineError, type EnumValues } from "@ddd-dod/types";
 
 /**
  * Transactional Outbox ports (ADR-0003). The **write side** persists events in
@@ -18,10 +19,28 @@ export interface OutboxRecord {
   readonly occurredAt: Date;
 }
 
-export type OutboxError = {
-  readonly type: "OutboxFailure";
-  readonly cause: unknown;
-};
+const errorVariants = {
+  outboxFailure: (cause: unknown) => ({ OutboxFailure: { cause } }) as const,
+} as const;
+
+/**
+ * Outbox port failure (ADR-0003, ADR-0008). Returned by the writer/dispatcher
+ * ports; concrete drizzle-backed impls construct it in EPIC-002. Carries its
+ * renderers (ADR-0009): `OutboxError.format` (Display) and `OutboxError.serialize`
+ * (structured). The native cause is stringified at the boundary, never leaked raw.
+ */
+export type OutboxError = EnumValues<typeof errorVariants>;
+
+export const OutboxError = defineError(errorVariants, {
+  format: (e: OutboxError) =>
+    match(e, {
+      OutboxFailure: (x) => `outbox failure: ${String(x.cause)}`,
+    }),
+  serialize: (e: OutboxError) =>
+    match(e, {
+      OutboxFailure: (x) => ({ kind: "OutboxFailure", cause: String(x.cause) }),
+    }),
+});
 
 /** Enqueue published events atomically with the owning state change. */
 export interface OutboxWriter {

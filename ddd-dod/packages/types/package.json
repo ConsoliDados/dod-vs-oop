@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "exports": {
+    ".": "./src/index.ts",
     "./globals": "./src/globals.ts",
     "./globals-types": {
       "types": "./src/globals-types.d.ts"

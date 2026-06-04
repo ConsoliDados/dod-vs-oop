@@ -6,4 +6,4 @@
  * and persistence adapter land in EPIC-002 (ledger-core), under
  * `src/{domain,application,infra}`.
  */
-export { formatLedgerError, LedgerError } from "./error";
+export { LedgerError } from "./error";

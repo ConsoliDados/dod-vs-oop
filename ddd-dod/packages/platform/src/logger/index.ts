@@ -9,7 +9,7 @@ export {
 } from "./log-record";
 export type { LogSink } from "./log-sink";
 export type { AppLogger, LogBindings, LoggerConfig } from "./logger";
-export { createLogger } from "./logger";
+export { createLogger as create } from "./logger";
 export {
   createOtlpLogSink,
   type OtelLogData,

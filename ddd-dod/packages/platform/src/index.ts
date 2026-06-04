@@ -5,10 +5,10 @@
  * concrete wiring happens at the `apps/api` composition root (ADR-0004).
  */
 
-export * from "./clock";
-export * from "./config";
-export * from "./db";
-export * from "./di";
-export * from "./logger";
-export * from "./outbox";
+export * as clock from "./clock";
+export * as config from "./config";
+export * as db from "./db";
+export * as di from "./di";
+export * as logger from "./logger";
+export * as outbox from "./outbox";
 export { tryAsync } from "./try-async";

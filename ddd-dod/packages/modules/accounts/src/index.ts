@@ -6,4 +6,4 @@
  * and persistence adapter land in EPIC-002 (ledger-core), under
  * `src/{domain,application,infra}`.
  */
-export { AccountsError, formatAccountsError } from "./error";
+export { AccountsError } from "./error";
