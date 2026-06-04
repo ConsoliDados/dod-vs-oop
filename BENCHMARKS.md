@@ -25,19 +25,31 @@ and **DB I/O**. So we run a 2×2 factorial — `{stack} × {persistence}` — an
 
 ## Real-world topology (benches 1 & 3)
 
-Resource-constrained, modeled on the Rinha de Backend 2023 q3 budget (docker-compose limits):
+Rinha-inspired (reverse proxy + **2 instances** + DB on a tight budget), run at **two
+hardware tiers** so we see each stack both **suffer under a hard cap** and **breathe**. Each
+side is 4 containers (nginx + 2 api + postgres); the limit is the **whole side's** budget,
+split across its services (docker `cpus`/`mem_limit`):
 
-| Service | CPU | Memory |
-|---------|-----|--------|
-| nginx (load balancer) | 0.25 | 0.5 GB |
-| api1 | 0.25 | 0.5 GB |
-| api2 | 0.25 | 0.5 GB |
-| postgres | 0.75 | 1.5 GB |
-| **total** | **1.5** | **3 GB** |
+| Service | Tier A — austere | Tier B — roomy |
+|---------|------------------|----------------|
+| nginx (LB) | 0.15 CPU / 32 MB | 0.30 CPU / 96 MB |
+| api ×2 | 0.45 CPU / 160 MB each | 1.0 CPU / 512 MB each |
+| postgres | 0.45 CPU / 196 MB | 0.70 CPU / 384 MB |
+| **total / side** | **1.5 CPU / 548 MB** | **3.0 CPU / 1.5 GB** |
 
-Two API instances behind a proxy on a tight CPU/memory budget — the conditions where
-app-layer efficiency (allocations, GC pressure, object-graph traversal) actually moves
-throughput, which is exactly where the architectural difference should show.
+- **Tier A** = survival under a hard cap. The lean DOD/Bun side fits (~380 MB); the verbose
+  OOP/Nest side rides the **OOM edge** (~520 MB+) — part of the finding. An OOM-killed side
+  is recorded as a survival failure, not a throughput number.
+- **Tier B** = clean throughput, both stable — the comparable req/s come from here.
+
+**Core pinning (hybrid CPU, e.g. i9-14900HX: P-cores `cpuset 0-15`, E-cores `16-31`):** the
+measured **api** containers pin to **P-cores**, identical on both sides; **postgres + nginx +
+the k6 load generator** pin to **E-cores** so infra and the attacker never steal a P-core
+from the measured code. **One side at a time (sequential)** — each side gets the full P-core
+budget, zero cross-side contention.
+
+**`nginx`** is the reverse proxy / LB (tiny footprint, no GC → predictable tail latency; not
+Traefik). **Proxy is identical on both sides** — not the variable.
 
 Benches 2 & 4 drop the topology and run in-process against sqlite `:memory:` (no DB I/O),
 for the isolated/controlled numbers.
@@ -58,8 +70,10 @@ for the isolated/controlled numbers.
 ## Persistence
 
 - **classic** — TypeORM (multi-dialect: Postgres for benches 1/3, sqlite for 2/4).
-- **modern (Elysia, both sides in 3 & 4)** — Drizzle with an env-var flag selecting the
-  `pg` or `sqlite` dialect at runtime (verbose dual schema, accepted).
+- **dod / modern (Elysia)** — Drizzle behind a repository **port**, with **two concrete
+  adapters** (sqlite + pg) per bounded context; the composition root picks the driver from
+  config (`DATABASE_URL`). **Not** an env-flag dual-schema — ports/adapters keep the domain
+  driver-agnostic (ADR-0012 in `ddd-dod`; the driver is chosen in the dirty layer).
 - `sqlite :memory:` is also the integration/e2e **test** DB throughout, independent of these benchmarks.
 
 ## Harness components
