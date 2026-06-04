@@ -76,6 +76,21 @@ The "test rig" wrapped around the apps (built in this phase):
 6. **Metrics + reporting** — aggregation into the results table below.
 7. **Orchestration** — scripts to spin up, warm up, run each of the 4 configs, tear down.
 
+## Extra — parallelism (dod vs dod + thread-workers)
+
+Outside the 2×2 (which compares implementations): a **within-`ddd-dod`** comparison of the
+CPU-bound paths (statement generation, reconciliation) **baseline vs offloaded to a Bun
+worker-pool** — each worker bootstraps its own DI container (share-nothing). Measures what
+multicore parallelism buys the DOD implementation: throughput / tail-latency / scaling
+across N workers, with vs without workers.
+
+`ddd-classic` is **not** run with workers here — that is the finding. The post pairs the
+number with a **qualitative code-snippet** comparison of the worker boundary: DOD ships
+plain data (`pool.run(data)`, TypedArrays transfer zero-copy) while OOP must rehydrate
+entities, re-bootstrap a Nest context per worker, and cannot send behavior across the
+thread boundary. Infra already built: the `ddd-dod` `platform` worker-pool
+(`createWorkerPool`/`serveWorker`) + the merged worker+DI demo (its seed).
+
 ## Results
 
 _TBD — built once both implementations exist. One table per benchmark: throughput,
