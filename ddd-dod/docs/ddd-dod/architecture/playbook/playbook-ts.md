@@ -83,22 +83,31 @@ Conventions: **lowercase** namespace (the ESM idiom; the class-like errors insid
 
 ## 4. Errors — `Result<T, E>` pattern, not exceptions
 
-TypeScript has no built-in `Result`; use a discriminated-union helper. Recommended: a small `Result<T, E>` library (e.g. `@consolidados/results`, neverthrow, or hand-rolled).
+TypeScript has no built-in `Result`; use a small library (`@consolidados/results`, neverthrow, …) — **don't hand-roll `{ ok, value }`**. Prefer delivering it through a thin **wrapper package** that registers the value-globals and the ambient types **once**, so no file needs a per-`Result` import:
 
 ```ts
-// shared/result.ts (or import from a chosen library)
-export type Result<T, E> =
-  | { ok: true; value: T }
-  | { ok: false; error: E }
+// packages/types — the ONLY package that depends on the results lib
+// ./globals  (runtime, side-effect): registers Ok/Err/Some/None/match on globalThis
+import '@scope/results'
 
-export const Ok = <T>(value: T): Result<T, never> => ({ ok: true, value })
-export const Err = <E>(error: E): Result<never, E> => ({ ok: false, error })
+// ./globals-types  (ambient): bridge the generic *type* aliases to the global scope
+import type { Result as _Result, Option as _Option } from '@scope/results'
+declare global {
+  type Result<T, E> = _Result<T, E>
+  type Option<T> = _Option<T>
+}
 ```
+
+Activate it: `import '@scope/types/globals'` once at each **runtime entry surface** (`main.ts` + the test preload), and pull the ambient `.d.ts` into the compiler.
+
+> **Bun caveat (non-obvious):** under Bun's isolated `node_modules`, the documented `compilerOptions.types: ["@scope/types/globals-types"]` does **not** resolve the workspace subpath as a type-reference directive (normal imports do). Wire the ambient `.d.ts` via each tsconfig's **`include`** instead — same effect, Bun-compatible.
+
+Now `Result`/`Option` (types) and `Ok`/`Err`/`Some`/`None`/`match` (values) are ambient everywhere. The runtime API is the **library's** (`.isOk()`/`.isErr()`/`.value()`/`match(...)`) — narrow with `match` or `.isErr()`, **never** by reading a `result.ok` field.
 
 Domain code returns `Result<T, E>`. Infrastructure code at the boundary may catch exceptions and convert to `Err`.
 
 ```ts
-import { Result, Ok, Err } from '@/shared/result'
+// Ok/Err + Result are ambient globals (see above) — no import needed
 
 export type CvError =
   | { kind: 'invalid_ats_score'; score: number; expected: '0..=100' }
@@ -320,7 +329,7 @@ Why immutable: simpler reasoning, no hidden mutation, easier serialization for e
 ## 8. Use cases as functions
 
 ```ts
-import { Result, Err } from '@/shared/result'
+// Result + Err are ambient globals — no import needed
 import type { CvRepository, LlmProvider } from './ports'
 
 export type GenerateCvInput = {
@@ -338,14 +347,15 @@ export async function generateCv(
   llm: LlmProvider,
 ): Promise<Result<Cv, GenerateCvError>> {
   const out = await llm.generate(buildPrompt(input.rawData))
-  if (!out.ok) return Err({ kind: 'infra', cause: out.error })
+  if (out.isErr()) return Err({ kind: 'infra', cause: out.value() })
 
-  const cv = createCv(input.userId, out.value.content, out.value.tokensUsed)
+  const generated = out.value()
+  const cv = createCv(input.userId, generated.content, generated.tokensUsed)
 
   const saved = await repo.saveWithEvents(cv, [...cv.pendingEvents])
-  if (!saved.ok) return Err({ kind: 'infra', cause: saved.error })
+  if (saved.isErr()) return Err({ kind: 'infra', cause: saved.value() })
 
-  return { ok: true, value: cv }
+  return Ok(cv)
 }
 ```
 

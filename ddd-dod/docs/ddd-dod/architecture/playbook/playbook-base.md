@@ -43,7 +43,7 @@ Why: a `status` patch lets any caller drive the aggregate into any state, so the
 | 1 | Files ≤ 500 lines, ideally 200–300 |
 | 2 | Functions 4–60 lines, single responsibility |
 | 3 | One repository trait per aggregate (Fowler PoEAA), not per method |
-| 4 | Use case = free function with dependencies passed as parameters (no DI containers, no constructor injection) |
+| 4 | Use case = free function with dependencies passed as parameters (no constructor injection). A *functional, Result-native* DI container may wire deps at the **composition root only** — use cases stay container-agnostic (never receive the container) |
 | 5 | Distinctive, greppable names (target: <5 hits project-wide for unique identifiers) |
 | 6 | Rich doc-comments on aggregates, use cases, events, ports |
 | 7 | Explicit types — no escape hatches (`any`, untyped JSON); newtypes for IDs and other semantically-loaded values |
