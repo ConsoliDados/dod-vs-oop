@@ -1,10 +1,10 @@
 import {
   type AppConfig,
   type Container,
-  createConsoleSink,
   createContainer,
   createInMemoryDb,
   createLogger,
+  selectSink,
   systemClock,
 } from "@ddd-dod/platform";
 import { Tokens } from "./tokens";
@@ -24,7 +24,9 @@ export function buildContainer(config: AppConfig): Container {
   container.register(Tokens.Logger, () =>
     createLogger({
       level: config.LOG_LEVEL,
-      sink: createConsoleSink({ format: config.NODE_ENV === "production" ? "json" : "pretty" }),
+      // Env-selected transport (FRD-002): console in dev, OTLP in prod once the
+      // observability epic injects an `otelEmitter` here (ADR-0007).
+      sink: selectSink({ nodeEnv: config.NODE_ENV }),
       context: "api",
     }),
   );
