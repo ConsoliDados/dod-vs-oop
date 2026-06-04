@@ -1,12 +1,14 @@
+import { type DispatchStrategy, fifoBackpressure } from "./dispatch";
 import { WorkerPoolError } from "./errors";
 
 /**
- * A minimal **share-nothing** worker pool (ADR-0004 follow-up). Deliberately
- * **separate from the DI container** — the container must not know about
- * `Worker`/`postMessage`; this is the orchestration layer on top. Each worker is
- * its own thread + realm: it bootstraps **its own** container/state (no shared
- * JS heap), and the pool only round-robins payloads to them and correlates the
- * replies. Result-native: `run` never throws, returning `Err(WorkerPoolError)`.
+ * A **share-nothing** worker pool (ADR-0004 follow-up). Deliberately **separate
+ * from the DI container** — the container must not know about `Worker`/
+ * `postMessage`; this is the orchestration layer on top. Each worker is its own
+ * thread + realm: it bootstraps **its own** container/state (no shared JS heap).
+ * The pool owns the transport (spawn, `postMessage`, reply correlation); the
+ * pluggable {@link DispatchStrategy} owns *which worker, when*. Result-native:
+ * `run` never throws, returning `Err(WorkerPoolError)`.
  *
  * Worker side: implement the worker script with {@link serveWorker}.
  */
@@ -15,6 +17,12 @@ export interface WorkerPoolOptions {
   size: number;
   /** Module URL/path of the worker script (e.g. `new URL("./x.worker.ts", import.meta.url)`). */
   worker: string | URL;
+  /**
+   * Scheduling policy (ADR-0013). Defaults to {@link fifoBackpressure} — one
+   * in-flight job per worker + FIFO queue, the right fit for CPU-bound jobs. Pass
+   * {@link roundRobin} for the naive unbounded-in-flight baseline.
+   */
+  dispatch?: DispatchStrategy;
 }
 
 export interface WorkerPool<P, R> {
@@ -70,25 +78,38 @@ export function createWorkerPool<P, R>(options: WorkerPoolOptions): WorkerPool<P
   }
 
   let nextId = 0;
-  let roundRobin = 0;
   let disposed = false;
+
+  // The strategy schedules onto this transport; it never sees `Worker`/`postMessage`.
+  const strategy = options.dispatch ?? fifoBackpressure();
+  strategy.bind({
+    size: slots.length,
+    send(index, payload) {
+      const slot = slots[index] as Slot;
+      const id = nextId++;
+      return new Promise<Result<unknown, WorkerPoolError>>((resolve) => {
+        slot.pending.set(id, resolve);
+        slot.worker.postMessage({ id, payload });
+      });
+    },
+  });
 
   return {
     run(payload) {
       if (disposed) {
         return Promise.resolve(Err(WorkerPoolError.poolDisposed()));
       }
-      const slot = slots[roundRobin % slots.length] as Slot;
-      roundRobin++;
-      const id = nextId++;
       return new Promise<Result<R, WorkerPoolError>>((resolve) => {
-        slot.pending.set(id, resolve as (r: Result<unknown, WorkerPoolError>) => void);
-        slot.worker.postMessage({ id, payload });
+        strategy.submit({
+          payload,
+          settle: resolve as (r: Result<unknown, WorkerPoolError>) => void,
+        });
       });
     },
 
     async dispose() {
       disposed = true;
+      strategy.drain(); // reject still-queued tasks; in-flight ones are settled below
       for (const slot of slots) {
         slot.worker.terminate();
         for (const [, resolve] of slot.pending) {
