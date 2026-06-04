@@ -1,19 +1,12 @@
+import { DiError } from "./errors";
+
 /**
- * A minimal **token-based DI container** (ADR-0004). Used **only** at the
- * `apps/api` composition root to assemble concrete adapters, which are then
- * passed positionally into free-function use cases. It is never imported by
- * `domain/`/`application/` code — use cases stay container-agnostic.
- *
- * Resolution is singleton-by-default and lazy. Misconfiguration (missing
- * provider, circular dependency) is a programmer error surfaced as a thrown
- * `Error` at wiring time — fail-fast at startup, not domain control flow
- * (playbook §10.4). The `Result` discipline governs domain/application, not the
- * composition root's own bootstrap.
+ * A typed DI token. The phantom `__type` carries `T` for inference; the runtime
+ * identity is the unique `Symbol`. Never set at runtime.
  */
 export interface Token<T> {
   readonly key: symbol;
   readonly description: string;
-  /** Phantom — carries `T` for inference; never present at runtime. */
   readonly __type?: T;
 }
 
@@ -22,49 +15,129 @@ export function token<T>(description: string): Token<T> {
   return { key: Symbol(description), description };
 }
 
+export type Lifetime = "singleton" | "transient";
+
+/** Implement to be torn down on `Container.dispose()` (graceful shutdown). */
+export interface Disposable {
+  dispose(): void | Promise<void>;
+}
+
+/**
+ * A **Result-native, never-throwing** token-based DI container (ADR-0004,
+ * amended). Used only at the `apps/api` composition root; use cases stay
+ * container-agnostic. Functional — instance-per-`createContainer()` over
+ * closures, **no class, no static singleton** (the thing that aged badly in the
+ * `conecta` reference).
+ *
+ * - `resolve` returns `Result<T, DiError>` — never throws. The bootstrap matches
+ *   the `Err` and shuts down gracefully (FEAT-004) instead of crashing.
+ * - Lifetimes: `singleton` (default, memoized lazily) and `transient`.
+ * - `dispose` tears down tracked `Disposable` singletons in reverse creation
+ *   order, swallowing + logging per-item failures.
+ */
 export interface Container {
-  /** Register a lazy factory; resolved once and memoized (singleton). */
-  register<T>(token: Token<T>, factory: (c: Container) => T): void;
-  /** Register an already-built value. */
+  register<T>(token: Token<T>, factory: (c: Container) => T, opts?: { lifetime?: Lifetime }): void;
   registerValue<T>(token: Token<T>, value: T): void;
-  /** Resolve a token. Throws if no provider is registered (startup error). */
-  resolve<T>(token: Token<T>): T;
+  /** Resolve a token. Never throws — failures are `Err(DiError)`. */
+  resolve<T>(token: Token<T>): Result<T, DiError>;
   has(token: Token<unknown>): boolean;
+  /** Dispose tracked `Disposable` singletons in reverse creation order. */
+  dispose(): Promise<void>;
+}
+
+interface Registration {
+  factory: (c: Container) => unknown;
+  lifetime: Lifetime;
 }
 
 export function createContainer(): Container {
-  const factories = new Map<symbol, (c: Container) => unknown>();
+  const registrations = new Map<symbol, Registration>();
   const singletons = new Map<symbol, unknown>();
   const resolving = new Set<symbol>();
+  const resolvingStack: string[] = [];
+  const disposables: Disposable[] = []; // creation order; disposed in reverse
+
+  const trackDisposable = (instance: unknown): void => {
+    if (isDisposable(instance)) {
+      disposables.push(instance);
+    }
+  };
 
   const container: Container = {
-    register(t, factory) {
-      factories.set(t.key, factory as (c: Container) => unknown);
+    register(t, factory, opts) {
+      registrations.set(t.key, {
+        factory: factory as (c: Container) => unknown,
+        lifetime: opts?.lifetime ?? "singleton",
+      });
     },
+
     registerValue(t, value) {
       singletons.set(t.key, value);
+      trackDisposable(value);
     },
-    resolve<T>(t: Token<T>): T {
+
+    resolve<T>(t: Token<T>): Result<T, DiError> {
       if (singletons.has(t.key)) {
-        return singletons.get(t.key) as T;
+        return Ok(singletons.get(t.key) as T) as Result<T, DiError>;
       }
-      const factory = factories.get(t.key);
-      if (!factory) {
-        throw new Error(`DI: no provider registered for token "${t.description}"`);
+      const registration = registrations.get(t.key);
+      if (!registration) {
+        return Err(DiError.notRegistered(t.description)) as Result<T, DiError>;
       }
       if (resolving.has(t.key)) {
-        throw new Error(`DI: circular dependency while resolving "${t.description}"`);
+        return Err(DiError.circularDependency([...resolvingStack, t.description])) as Result<
+          T,
+          DiError
+        >;
       }
+
       resolving.add(t.key);
-      const value = factory(container) as T;
-      resolving.delete(t.key);
-      singletons.set(t.key, value);
-      return value;
+      resolvingStack.push(t.description);
+      let instance: T;
+      try {
+        instance = registration.factory(container) as T;
+      } catch (cause) {
+        return Err(DiError.factoryFailed(t.description, cause)) as Result<T, DiError>;
+      } finally {
+        resolving.delete(t.key);
+        resolvingStack.pop();
+      }
+
+      if (registration.lifetime === "singleton") {
+        singletons.set(t.key, instance);
+      }
+      trackDisposable(instance);
+      return Ok(instance) as Result<T, DiError>;
     },
+
     has(t) {
-      return singletons.has(t.key) || factories.has(t.key);
+      return singletons.has(t.key) || registrations.has(t.key);
+    },
+
+    async dispose() {
+      // Reverse creation order; a failing dispose is swallowed + logged so the
+      // rest still tear down (never throws).
+      for (const disposable of [...disposables].reverse()) {
+        try {
+          await disposable.dispose();
+        } catch (err) {
+          console.error("[di] dispose failed", err);
+        }
+      }
+      disposables.length = 0;
+      singletons.clear();
+      registrations.clear();
     },
   };
 
   return container;
+}
+
+function isDisposable(value: unknown): value is Disposable {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "dispose" in value &&
+    typeof (value as { dispose: unknown }).dispose === "function"
+  );
 }

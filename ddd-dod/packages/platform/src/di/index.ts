@@ -1,1 +1,9 @@
-export { type Container, createContainer, type Token, token } from "./container";
+export {
+  type Container,
+  createContainer,
+  type Disposable,
+  type Lifetime,
+  type Token,
+  token,
+} from "./container";
+export { DiError, formatDiError } from "./errors";
