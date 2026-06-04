@@ -42,3 +42,55 @@ describe("createLogger", () => {
     expect(records[1]?.requestId).toBeUndefined();
   });
 });
+
+describe("logger — error serialization", () => {
+  test("error() normalizes a thrown Error onto record.err", () => {
+    const { records, sink } = captureSink();
+    create({ level: "info", sink }).error("failed", new Error("boom"));
+    expect(records[0]?.err?.name).toBe("Error");
+    expect(records[0]?.err?.message).toBe("boom");
+    expect(typeof records[0]?.err?.stack).toBe("string");
+  });
+
+  test("error() walks the cause chain", () => {
+    const { records, sink } = captureSink();
+    create({ level: "info", sink }).error(
+      "failed",
+      new Error("outer", { cause: new Error("inner") }),
+    );
+    expect(records[0]?.err?.cause?.message).toBe("inner");
+  });
+
+  test("error() normalizes a non-Error thrown value", () => {
+    const { records, sink } = captureSink();
+    create({ level: "info", sink }).error("failed", "just a string");
+    expect(records[0]?.err?.name).toBe("NonError");
+    expect(records[0]?.err?.message).toBe("just a string");
+  });
+});
+
+describe("logger — redaction depth & matching", () => {
+  test("redacts nested object + array values by key, recursively", () => {
+    const { records, sink } = captureSink();
+    create({ level: "info", sink }).info("x", {
+      user: { name: "neo", password: "hunter2" },
+      tokens: [{ token: "abc" }],
+    });
+    expect(records[0]?.fields).toEqual({
+      user: { name: "neo", password: "[REDACTED]" },
+      tokens: [{ token: "[REDACTED]" }],
+    });
+  });
+
+  test("matches sensitive keys case-insensitively", () => {
+    const { records, sink } = captureSink();
+    create({ level: "info", sink }).info("x", { Authorization: "Bearer z", SECRET: "s" });
+    expect(records[0]?.fields).toEqual({ Authorization: "[REDACTED]", SECRET: "[REDACTED]" });
+  });
+
+  test("honors caller-extended redact keys (defaults cannot be shrunk)", () => {
+    const { records, sink } = captureSink();
+    create({ level: "info", sink, redactKeys: ["ssn"] }).info("x", { ssn: "123", token: "t" });
+    expect(records[0]?.fields).toEqual({ ssn: "[REDACTED]", token: "[REDACTED]" });
+  });
+});
