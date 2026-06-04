@@ -190,6 +190,15 @@ Negative tests assert the specific error variant, not just "any error":
 assert!(matches!(result, Err(Error::Variant { .. })));
 ```
 
+### 10.6 Display vs structured rendering — two jobs, two renderers
+
+An error usually needs **two** renderings, and they must not be confused:
+
+- **Display** — human-readable, one line, for boot/CLI logs and developer eyes. This is §10.3 (`Display::fmt` in Rust; a `format(e) -> string` in TS). It is **never** an API response body or a machine log field.
+- **Structured** — a flat, serializable record (`{ kind, …safe fields }`) for **observability** (log/metric/trace fields, queryable) and as the source for an API mapping. Stringifying the Display blob into a log or an HTTP body is the anti-pattern: it can't be queried and leaks human phrasing into a machine contract.
+
+Bundle both with the error (in TS, a `defineError`-style helper that *requires* `format` + `serialize` — see `playbook-ts` §5; in Rust, `Display` + `serde::Serialize`). Keep the structured type **validator/logger-neutral** so a pure-domain error depends on neither. Mapping a variant → transport response (HTTP status + stable token + safe fields) is a **boundary** concern done at the handler, not a third renderer baked into the error.
+
 ## 11. Strict typing
 
 - **Newtype wrappers** for IDs, paths, and short strings with semantics. Pass `ProjectHash`, not `String`.

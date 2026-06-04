@@ -15,6 +15,9 @@ This project is being used to **lapidate** the DOD/functional-core conventions b
 - Infra adapters as factories (no class) + module-private closures + `tryAsync` boundary wrapper.
 - Zod scope refinement: external untrusted boundaries only, not the own-context read path (ADR-0006).
 - Recommended tsconfig extras (`noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`).
+- **`defineError` + `EnumValues`** as the single error-as-value spelling, with **validator-neutral payloads** (`ValidationIssue`, not `z.ZodIssue[]`) — ADR-0008. Refines OQ-001 bullet "two error encodings": the *operational* (Rust-enum) encoding now has a canonical helper. Carry-back caveat: `EnumValues` must allow constructors returning `string | object` (nullary tag variants + payload variants); the `const` type param on `defineError` needs TS 5.0+.
+- **Two error renderers** `format` (Display, string) vs `serialize` (structured `ErrorJson`), required by `defineError`; API mapping deferred to the route boundary — ADR-0009.
+- **ESM namespace barrels** (`export * as config`) for a module's public surface, lowercase namespace + dropped redundant suffix via barrel alias (`loadConfig as load`) — ADR-0010. (2026-06-04, `feat/platform-conventions`.)
 
 Decide at project close: which of these proved out → PR into the template playbook. **Do not edit the template mid-project.**
 
