@@ -13,7 +13,7 @@ Strategic-level architecture. The "what fits where" view. Tactical detail per ar
 
 ## 2. Architectural style
 
-**Clean Architecture Essentials + Data-Oriented Design.** Each bounded context is a workspace package split into `domain/` → `application/` → `infra/`. Dependencies point inward (infra depends on application depends on domain; domain depends on nothing). See `playbook/playbook-base.md` §2 and `playbook/playbook-ts.md`.
+**Clean Architecture Essentials + Data-Oriented Design.** Dependencies point inward (infra depends on application depends on domain; domain depends on nothing). At this project's **medium tier** the layers are split *across packages* so the functional core is **provably infra-free** (ADR-0014): the **context package** (`packages/modules/<ctx>`) holds `domain/` + `application/` only — the repository **port** lives in `application`; **outbound adapters** (persistence) live in a dedicated `@ddd-dod/infra` package; **inbound adapters** (HTTP routes) live in the delivery app (`apps/api`). The three "infra"s — inbound (driving), outbound (driven), and technical ports (`platform`) — are placed by kind and scale by tier (prototype→large). See `playbook/playbook-base.md` §5/§21, ADR-0014, and `PLAYBOOK-LEARNINGS.md` for the per-tier folder organization.
 
 Distinguishing choices of this implementation (the independent variables of the study — the inverse of `ddd-classic`'s SAD §2):
 
@@ -46,22 +46,24 @@ Identical domain boundaries to `ddd-classic` (the SRS is shared); only the reali
 ```
 ddd-dod/
 ├─ apps/
-│  └─ api/                 Elysia HTTP entry + composition root (wires the DI container)
+│  └─ api/                 Elysia delivery + composition root; INBOUND adapters in src/http/modules/<ctx> (ADR-0014)
 └─ packages/
    ├─ types/               results-globals wrapper (@ddd-dod/types): ./globals + ./globals-types; sole @consolidados/results dependant
-   ├─ platform/            technical, ZERO domain: logger, config, di, db, outbox runtime, clock
+   ├─ platform/            technical, ZERO domain: logger, config, di, db (port + connection), outbox runtime, clock
    ├─ shared-kernel/       shared DOMAIN: Money (integer minor units), event contracts, branded ids, Notification error shapes
-   └─ modules/
-      ├─ ledger/           domain/ application/ infra/  (one package per bounded context)
-      ├─ accounts/
-      ├─ statements/
-      └─ reconciliation/
+   ├─ modules/             CORE per bounded context — domain/ + application/ only, ZERO infra dep (port lives in application)
+   │  ├─ ledger/
+   │  ├─ accounts/
+   │  ├─ statements/
+   │  └─ reconciliation/
+   └─ infra/               @ddd-dod/infra — OUTBOUND adapters: src/modules/<ctx>/{sqlite,pg}; subpath-exported per ctx
 ```
 
 - **`types/`** is the results-globals wrapper (ADR-0005): the **only** package that depends on `@consolidados/results`. It exposes `./globals` (runtime value registration) and `./globals-types` (ambient `Result`/`Option` types). Every other package gets `Result`/`Option`/`Ok`/`Err`/`Some`/`None`/`match` ambiently — no direct results import.
 - **`platform/`** carries no domain knowledge. It is the inverse-dependency sink: modules depend on its *ports* (e.g. `Clock`, `Logger`, `Outbox`) but the concrete adapters are built and injected at the composition root. The logger is functional (closure-based factory `createLogger`); the DI container is token-based and used only in `apps/api`.
 - **`shared-kernel/`** is pure domain shared by all contexts — `Money`, branded `AccountId`/`TransactionId`, the published-event contracts, and the Notification error shapes (`InvalidProperty`). It depends on nothing infra.
-- **`modules/<context>/`** each expose a public `index.ts`; cross-package imports never reach into `<pkg>/src/...`.
+- **`modules/<context>/`** are the **core** — `domain/` + `application/` only, **zero infra dependency** (ADR-0014). Each exposes a public `index.ts` with its use-cases and its repository **port** (a hydrator signature, pattern #8); cross-package imports never reach into `<pkg>/src/...`.
+- **`infra/`** (`@ddd-dod/infra`) holds the **outbound adapters** — `src/modules/<context>/{sqlite,pg}` implementing each context's port, subpath-exported (e.g. `@ddd-dod/infra/ledger`). Depends on each core + `platform`; the composition root wires port→adapter by driver (ADR-0012/0014). **Inbound** adapters (HTTP routes) live in `apps/api/src/http`, never here.
 
 ## 5. Cross-cutting concerns
 

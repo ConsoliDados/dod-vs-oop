@@ -18,8 +18,9 @@ This project is being used to **lapidate** the DOD/functional-core conventions b
 - **`defineError` + `EnumValues`** as the single error-as-value spelling, with **validator-neutral payloads** (`ValidationIssue`, not `z.ZodIssue[]`) — ADR-0008. Refines OQ-001 bullet "two error encodings": the *operational* (Rust-enum) encoding now has a canonical helper. Carry-back caveat: `EnumValues` must allow constructors returning `string | object` (nullary tag variants + payload variants); the `const` type param on `defineError` needs TS 5.0+.
 - **Two error renderers** `format` (Display, string) vs `serialize` (structured `ErrorJson`), required by `defineError`; API mapping deferred to the route boundary — ADR-0009.
 - **ESM namespace barrels** (`export * as config`) for a module's public surface, lowercase namespace + dropped redundant suffix via barrel alias (`loadConfig as load`) — ADR-0010. (2026-06-04, `feat/platform-conventions`.)
+- **Infra placement & per-tier folder organization** — ADR-0014. Name the three "infra"s: inbound (driving, HTTP routes → the app), outbound (driven, persistence adapters → a dedicated `@ddd-dod/infra` package), technical ports (→ `platform`). Core package = `domain` + `application` only (provably infra-free; the port lives in `application`). Scales prototype→large. Refines playbook **§5.1/§5.2** ("adapters in an `infra/` subfolder") and adds a **placement row to the §21 tier table** — the missing *tier* axis (file-count promotion stays orthogonal). Full write-up + per-tier folder trees in **`architecture/playbook/PLAYBOOK-LEARNINGS.md` (L-001)**. (2026-06-04.)
 
-Decide at project close: which of these proved out → PR into the template playbook. **Do not edit the template mid-project.**
+Decide at project close: which of these proved out → PR into the template playbook. **Do not edit the template mid-project.** Detailed write-ups now live in `architecture/playbook/PLAYBOOK-LEARNINGS.md`.
 
 ### OQ-002 — DI container vs manual composition root (2026-06-03)
 
