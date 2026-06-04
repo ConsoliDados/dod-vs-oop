@@ -10,4 +10,10 @@ export {
 export type { LogSink } from "./log-sink";
 export type { AppLogger, LogBindings, LoggerConfig } from "./logger";
 export { createLogger } from "./logger";
+export {
+  createOtlpLogSink,
+  type OtelLogData,
+  type OtelLogEmitter,
+} from "./otlp-log-sink";
 export { DEFAULT_REDACT_KEYS } from "./redact";
+export { type SelectSinkOptions, selectSink } from "./select-sink";
