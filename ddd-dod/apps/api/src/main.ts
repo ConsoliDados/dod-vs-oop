@@ -1,5 +1,5 @@
 import "@ddd-dod/types/globals";
-import { loadConfig } from "@ddd-dod/platform";
+import { formatConfigError, loadConfig } from "@ddd-dod/platform";
 import { createApp } from "./app";
 import { buildContainer } from "./composition-root";
 import { Tokens } from "./tokens";
@@ -20,7 +20,7 @@ match(loadConfig(), {
     });
   },
   Err: (error) => {
-    console.error("invalid configuration:", error.issues);
+    console.error(formatConfigError(error));
     process.exit(1);
   },
 });
