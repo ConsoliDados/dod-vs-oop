@@ -60,7 +60,7 @@ Per playbook §20 and the workspace reverse-boundary, docs here reference other 
 
 - [x] FEAT-001 config — shipped + tested
 - [x] FEAT-002 logger — shipped + tested
-- [ ] FEAT-003 di-container — shipped + tested
+- [x] FEAT-003 di-container — shipped + tested
 - [ ] FEAT-004 app-bootstrap — shipped + tested
 - [ ] FEAT-005 http-app — shipped + tested
 - [ ] `bun run check` clean; `bun test` green; app boots and shuts down cleanly
@@ -70,4 +70,5 @@ Per playbook §20 and the workspace reverse-boundary, docs here reference other 
 
 - 2026-06-03 — Epic planned; five features scoped (config, logger, di-container, app-bootstrap, http-app), dependency-ordered. FRDs to be written per-feature as each is picked up.
 - 2026-06-03 — FEAT-001 config shipped (`feat/config`): FRD-001 + hardened loader (`Readonly`/`Object.freeze`, non-strict env per ADR-0006) + `formatConfigError` + `main.ts` wiring + 8 tests. `bun run check` clean; `bun test` 23/23; boot prints a per-issue error on bad `PORT` and exits 1. Merged locally into `epic/active-foundation`.
+- 2026-06-04 — FEAT-003 di-container shipped (`feat/di-container`): ADR-0004 **amended** (Result-native, never-throws, disposable, reusable). `resolve` → `Result<T, DiError>` (NotRegistered/CircularDependency/FactoryFailed), singleton+transient, `dispose` reverse-order swallow+log; `app.ts` now takes resolved deps, `main.ts` threads the Result via `match`. 4 new tests. Better than the `conecta` reference but functional (no class/static singleton). `bun run check` clean; `bun test` 33/33. Merged locally into `epic/active-foundation`. (Graceful shutdown wiring → FEAT-004.)
 - 2026-06-03 — ADR-0007 (observability stack: OTel + Grafana LGTM) accepted. FEAT-002 logger shipped (`feat/logger`): FRD-002 + `createOtlpLogSink` (LogRecord → OTel logs data model, severity 5/9/13/17, never-throws) + `selectSink` (env transport) + composition-root wiring + 6 tests. Verified dev→console pretty, prod→console JSON (OTLP when an emitter is injected). `bun run check` clean; `bun test` 29/29. Merged locally into `epic/active-foundation`. (Full OTel SDK/metrics/traces/compose → observability epic.)
