@@ -52,7 +52,7 @@ Read [[docs/ddd-dod/architecture/playbook/playbook-base.md]] and [[docs/ddd-dod/
 4. `docs/ddd-dod/architecture/playbook/playbook-ts.md` — TypeScript/Bun rules and examples.
 5. `docs/ddd-dod/architecture/sad.md` — system architecture (the DOD independent variables).
 6. `docs/ddd-dod/architecture/srs.md` — requirements contract (shared, byte-for-byte with `ddd-classic`).
-7. `docs/ddd-dod/architecture/adrs/` — locked-in decisions (ADR-0001..0006); check before deviating.
+7. `docs/ddd-dod/architecture/adrs/` — locked-in decisions (ADR-0001..0011); check before deviating.
 8. `docs/ddd-dod/architecture/sdds/` (when present) — per-domain tactical bible.
 9. `docs/ddd-dod/epics/` — active epic + `exits_with` + Mode B features.
 10. `../README.md` — public overview of the study; `../../PLAN.md` — internal source of truth.
@@ -129,8 +129,9 @@ Within MILESTONE-001 (bootstrap), the **scaffold** epic (`epic/scaffold`) is all
 
 ### Tests
 
-- **Unit tests co-located** with the source.
-- **Integration / E2E tests** in `tests/` per package or at `apps/api/tests/`.
+- **Unit tests co-located** with the source — `foo.ts` → `foo.test.ts` **beside it**, never under `tests/`.
+- **Integration / E2E tests** in `tests/` (per package, or `apps/api/tests/` for API E2E). In `platform/`, `tests/` is for cross-module/threaded integration (e.g. worker+DI) and, at most, DB integration.
+- **Test fixtures/helpers** (e.g. a worker script a test loads by URL) live in `src/test-helpers/` — never loose in `src/` and never duplicated per test.
 - One command: `bun test`. Negative cases required (assert the specific `Err` variant).
 
 ## Local dev
