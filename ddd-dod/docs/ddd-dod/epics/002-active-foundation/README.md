@@ -39,9 +39,10 @@ Each feature = one FRD = one `feat/<slug>` branch (merged locally into `epic/act
 | FEAT-002 | logger | `feat/logger` | Functional structured logger: levels, console sink (json/pretty), key redaction, `child`/request-correlation. Functional style of the `my-approfile` logger; **not** the singleton/class style of the `conecta` logger | — |
 | FEAT-003 | di-container | `feat/di-container` | Token-based container hardened: lazy singletons, `dispose` on shutdown, test substitution; composition-root-only (ADR-0004) | — |
 | FEAT-004 | app-bootstrap | `feat/app-bootstrap` | The `bootstrap()` runtime: compose config → logger → container → app; graceful shutdown (SIGINT/SIGTERM); lifecycle/dispose ordering | 001, 002, 003 |
-| FEAT-005 | http-app | `feat/http-app` | Elysia app: `Err`→HTTP error envelope (SRS NFR-OBS-001), request-id + request-scoped logger middleware, health/readiness endpoints, 404/422/500 shapes | 002, 004 |
+| FEAT-005 | persistence | `feat/persistence` | Driver-flexible Drizzle DB: `:memory:` sqlite (Phase 2 / dev / test) **+** Postgres (Phase 1 rinha), **env-selected**; drizzle-kit config + migrations; `DATABASE_URL` in config (ADR-0012). Adapts the `my-approfile` Drizzle recipe (Postgres-only) to dual-driver | 001 |
+| FEAT-006 | http-app | `feat/http-app` | Elysia app: `Err`→HTTP error envelope (SRS NFR-OBS-001), request-id + request-scoped logger middleware, health/readiness endpoints (readiness probes the DB), 404/422/500 shapes | 002, 004, 005 |
 
-Dependency order: **001 → (002, 003 in parallel) → 004 → 005**.
+Dependency order: **001 → (002, 003, 005 in parallel) → 004 → 006**.
 
 ## Out of scope
 
@@ -62,7 +63,8 @@ Per playbook §20 and the workspace reverse-boundary, docs here reference other 
 - [x] FEAT-002 logger — shipped + tested
 - [x] FEAT-003 di-container — shipped + tested
 - [x] FEAT-004 app-bootstrap — shipped + tested
-- [ ] FEAT-005 http-app — shipped + tested
+- [ ] FEAT-005 persistence — shipped + tested
+- [ ] FEAT-006 http-app — shipped + tested
 - [ ] `bun run check` clean; `bun test` green; app boots and shuts down cleanly
 - [ ] Epic PR'd into `milestone/bootstrap`
 
@@ -76,3 +78,4 @@ Per playbook §20 and the workspace reverse-boundary, docs here reference other 
 - 2026-06-04 — Refinement pass `feat/platform-conventions` merged locally (**not a numbered feature** — cross-cutting lapidation; FEAT-005 http-app still pending). Error-as-value house style: `defineError` + `EnumValues` (validator-neutral payloads, `ValidationIssue` not `z.ZodIssue[]`), `.format` (Display) vs `.serialize` (structured `ErrorJson`) bundled on the error; ESM **namespace barrels** for `platform` (`config.load`, `di.createContainer`, …). ADR-0008/0009/0010. 7 error enums migrated; `@ddd-dod/types` grew a `.` entry for the helpers. Project playbook copies corrected (`playbook-ts §3/§5/§6`, `playbook-base §10.6`); `PLAYBOOK-LEARNINGS.md` reconciled. `bun run check` clean; `bun test` 41/41.
 - 2026-06-04 — DI hardening pass started (`feat/di-hardening`, refines FEAT-003 toward an extractable `@consolidados/di` lib). Scope: (a) transient-`Disposable` teardown leak fix; (b) all-async "magic" `resolve` (factory `T | Promise<T>`) + single-flight + ancestor-chain cycle detection + sync `peek`; (c) `createScope()` + `scoped` lifetime, and a separate worker-pool helper. TDD-first.
 - 2026-06-04 — DI hardening **shipped** (`feat/di-hardening`, ADR-0011). Container: all-async magic `resolve` + single-flight + ancestor-chain cycle detection + sync `peek`; lifetimes singleton|scoped|transient + `createScope()`; transient-`Disposable` teardown leak fixed (`DiError.NotResolved` added for `peek`). Share-nothing **worker-pool** (`createWorkerPool`/`serveWorker`) **separate** from the DI (no `Worker`/`postMessage` coupling), with a real Bun Worker test. Coverage filled (logger error-serialization + redaction depth, config multi-issue). **Unit tests co-located** with source per AGENTS — `tests/` is now integration/E2E only (`apps/api/tests/`). `bun run check` clean; `bun test` 65/65. Merged locally into `epic/active-foundation`.
+- 2026-06-04 — FEAT-005 **persistence** shipped (`feat/persistence`, ADR-0012; renumbered http-app → FEAT-006). Driver-flexible Drizzle connection picked from config `DATABASE_URL`: `createDb()` → sqlite `:memory:` (Phase 2 / dev / test) or Postgres (`pg` pool, Phase 1 rinha). Port-shaped `DbHandle` (`driver`/`probe`=`SELECT 1`/`close`), `DbError` (ADR-0008/0009); composition root swaps the driver in the dirty layer. **Decision: ports/adapters, not a shared schema/factory** (SAD #8) — schemas + per-context sqlite/pg adapters + migration tooling land in EPIC-003. Adapts the `my-approfile` Drizzle recipe (Postgres-only) to dual-driver. 6 new tests. `bun run check` clean; `bun test` 71/71. (`@types/pg` to be moved deps→devDeps — trivial.)
