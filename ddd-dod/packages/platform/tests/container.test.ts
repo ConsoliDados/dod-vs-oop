@@ -84,4 +84,21 @@ describe("DI container — dispose", () => {
     await c.dispose();
     expect(order).toEqual(["B", "A"]);
   });
+
+  test("onDispose callbacks run interleaved with resolved Disposables, reverse order", async () => {
+    const c = createContainer();
+    const order: string[] = [];
+    const A = token<Disposable>("A");
+    c.register(A, () => ({
+      dispose: () => {
+        order.push("A-disposable");
+      },
+    }));
+    c.resolve(A); // tracked first
+    c.onDispose(() => {
+      order.push("callback");
+    }); // tracked second
+    await c.dispose();
+    expect(order).toEqual(["callback", "A-disposable"]);
+  });
 });

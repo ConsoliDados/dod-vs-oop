@@ -41,7 +41,9 @@ export interface Container {
   /** Resolve a token. Never throws — failures are `Err(DiError)`. */
   resolve<T>(token: Token<T>): Result<T, DiError>;
   has(token: Token<unknown>): boolean;
-  /** Dispose tracked `Disposable` singletons in reverse creation order. */
+  /** Register a teardown callback; run in reverse registration order on `dispose`. */
+  onDispose(callback: () => void | Promise<void>): void;
+  /** Run every teardown (resolved `Disposable`s + `onDispose` callbacks) in reverse order. */
   dispose(): Promise<void>;
 }
 
@@ -55,11 +57,12 @@ export function createContainer(): Container {
   const singletons = new Map<symbol, unknown>();
   const resolving = new Set<symbol>();
   const resolvingStack: string[] = [];
-  const disposables: Disposable[] = []; // creation order; disposed in reverse
+  // Teardown callbacks in registration order; run in reverse on dispose().
+  const teardowns: Array<() => void | Promise<void>> = [];
 
   const trackDisposable = (instance: unknown): void => {
     if (isDisposable(instance)) {
-      disposables.push(instance);
+      teardowns.push(() => instance.dispose());
     }
   };
 
@@ -114,17 +117,21 @@ export function createContainer(): Container {
       return singletons.has(t.key) || registrations.has(t.key);
     },
 
+    onDispose(callback) {
+      teardowns.push(callback);
+    },
+
     async dispose() {
-      // Reverse creation order; a failing dispose is swallowed + logged so the
-      // rest still tear down (never throws).
-      for (const disposable of [...disposables].reverse()) {
+      // Reverse registration order; a failing teardown is swallowed + logged so
+      // the rest still run (never throws).
+      for (const teardown of [...teardowns].reverse()) {
         try {
-          await disposable.dispose();
+          await teardown();
         } catch (err) {
-          console.error("[di] dispose failed", err);
+          console.error("[di] teardown failed", err);
         }
       }
-      disposables.length = 0;
+      teardowns.length = 0;
       singletons.clear();
       registrations.clear();
     },

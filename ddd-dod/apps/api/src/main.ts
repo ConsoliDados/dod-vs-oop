@@ -1,34 +1,29 @@
 import "@ddd-dod/types/globals";
-import { formatConfigError, formatDiError, loadConfig } from "@ddd-dod/platform";
-import { createApp } from "./app";
-import { buildContainer } from "./composition-root";
-import { Tokens } from "./tokens";
+import { bootstrap, formatBootstrapError } from "./bootstrap";
 
 /**
- * Entrypoint. Error-as-value the whole way (no throw, no fail-fast): load config,
- * wire the container, resolve the core deps — each step `match`ed. On any `Err`
- * we log and exit non-zero for now; the **graceful shutdown** (dispose the
- * container, drain in-flight) lands in FEAT-004 (app-bootstrap), which will
- * replace these bare exits with an orderly teardown.
+ * Entrypoint. `bootstrap` is error-as-value; `match` its result. On `Ok`, listen
+ * and install graceful-shutdown handlers (SIGTERM/SIGINT → log → dispose → exit
+ * 0). On `Err`, log the formatted reason and exit non-zero. No `throw`, no bare
+ * fail-fast — the teardown is orderly (container disposers, reverse order).
  */
-match(loadConfig(), {
-  Ok: (config) => {
-    const container = buildContainer(config);
-    match(container.resolve(Tokens.Logger), {
-      Ok: (logger) => {
-        const app = createApp({ config });
-        app.listen(config.PORT, () => {
-          logger.info("api listening", { port: config.PORT, env: config.NODE_ENV });
-        });
-      },
-      Err: (error) => {
-        console.error(formatDiError(error));
-        process.exit(1);
-      },
+match(bootstrap(), {
+  Ok: ({ app, port, logger, dispose }) => {
+    app.listen(port, () => {
+      logger.info("api listening", { port });
     });
+
+    const shutdown = async (signal: string): Promise<void> => {
+      logger.info("shutting down", { signal });
+      await dispose();
+      process.exit(0);
+    };
+
+    process.on("SIGTERM", () => void shutdown("SIGTERM"));
+    process.on("SIGINT", () => void shutdown("SIGINT"));
   },
   Err: (error) => {
-    console.error(formatConfigError(error));
+    console.error(formatBootstrapError(error));
     process.exit(1);
   },
 });
