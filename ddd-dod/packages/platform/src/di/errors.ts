@@ -11,6 +11,7 @@ import { defineError, type EnumValues } from "@ddd-dod/types";
  */
 const variants = {
   notRegistered: (token: string) => ({ NotRegistered: { token } }) as const,
+  notResolved: (token: string) => ({ NotResolved: { token } }) as const,
   circularDependency: (chain: readonly string[]) => ({ CircularDependency: { chain } }) as const,
   factoryFailed: (token: string, cause: unknown) => ({ FactoryFailed: { token, cause } }) as const,
 } as const;
@@ -21,12 +22,15 @@ export const DiError = defineError(variants, {
   format: (e: DiError) =>
     match(e, {
       NotRegistered: (x) => `no provider registered for token "${x.token}"`,
+      NotResolved: (x) =>
+        `token "${x.token}" is registered but not built yet — call resolve() first (peek() is for already-resolved singletons)`,
       CircularDependency: (x) => `circular dependency: ${x.chain.join(" -> ")}`,
       FactoryFailed: (x) => `factory for token "${x.token}" failed: ${String(x.cause)}`,
     }),
   serialize: (e: DiError) =>
     match(e, {
       NotRegistered: (x) => ({ kind: "NotRegistered", token: x.token }),
+      NotResolved: (x) => ({ kind: "NotResolved", token: x.token }),
       CircularDependency: (x) => ({ kind: "CircularDependency", chain: x.chain }),
       FactoryFailed: (x) => ({ kind: "FactoryFailed", token: x.token, cause: String(x.cause) }),
     }),

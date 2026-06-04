@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { StatementsError } from "../src/error";
+import { StatementsError } from "./error";
 
 describe("StatementsError", () => {
   test("format renders string and object variants through match", () => {

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { ConfigError, load } from "../src/config";
+import { ConfigError, load } from "./index";
 
 describe("loadConfig", () => {
   test("accepts a valid environment", () => {
@@ -51,5 +51,13 @@ describe("ConfigError", () => {
     const json = ConfigError.serialize(error);
     expect(json.kind).toBe("InvalidEnv");
     expect(Array.isArray(json.issues)).toBe(true);
+  });
+
+  test("format lists every issue, one line each", () => {
+    const error = load({ PORT: "abc", LOG_LEVEL: "trace" }).unwrapErr();
+    const message = ConfigError.format(error);
+    expect(message).toContain("PORT");
+    expect(message).toContain("LOG_LEVEL");
+    expect(message.split("\n").length).toBeGreaterThanOrEqual(3); // header + 2 issue lines
   });
 });

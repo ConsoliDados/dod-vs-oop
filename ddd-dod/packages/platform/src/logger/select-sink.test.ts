@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { create, type OtelLogData, selectSink } from "../src/logger";
+import { create, type OtelLogData, selectSink } from "./index";
 
 describe("selectSink", () => {
   test("production with an otel emitter routes logs to OTLP", () => {

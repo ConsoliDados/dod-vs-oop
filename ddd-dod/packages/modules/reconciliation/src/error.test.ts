@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { ReconciliationError } from "../src/error";
+import { ReconciliationError } from "./error";
 
 describe("ReconciliationError", () => {
   test("format renders string and object variants through match", () => {

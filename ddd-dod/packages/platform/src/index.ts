@@ -12,3 +12,4 @@ export * as di from "./di";
 export * as logger from "./logger";
 export * as outbox from "./outbox";
 export { tryAsync } from "./try-async";
+export * as workerPool from "./worker-pool";

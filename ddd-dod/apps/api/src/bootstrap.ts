@@ -44,7 +44,10 @@ export function bootstrap(
 
   const container = buildContainer(appConfig);
 
-  const loggerResult = container.resolve(Tokens.Logger);
+  // Logger is eagerly `registerValue`d in the composition root, so read it back
+  // synchronously via `peek` — keeps `bootstrap` sync. A lazily-factoried dep
+  // would instead be `await container.resolve(...)`.
+  const loggerResult = container.peek(Tokens.Logger);
   if (loggerResult.isErr()) {
     return Err(BootstrapError.wiring(loggerResult.value()));
   }
