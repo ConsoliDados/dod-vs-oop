@@ -5,7 +5,7 @@
   "private": true,
   "type": "module",
   "license": "MIT",
-  "workspaces": ["apps/*", "packages/*", "packages/modules/*"],
+  "workspaces": ["apps/*", "packages/*", "packages/modules/*", "bench/*"],
   "scripts": {
     "dev": "bun --watch apps/api/src/main.ts",
     "start": "bun apps/api/src/main.ts",
