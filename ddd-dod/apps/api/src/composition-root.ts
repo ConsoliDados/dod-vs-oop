@@ -21,19 +21,21 @@ export function buildContainer(config: AppConfig): Container {
 
   container.registerValue(Tokens.Config, config);
 
-  container.register(Tokens.Logger, () =>
-    createLogger({
-      level: config.LOG_LEVEL,
-      // Env-selected transport (FRD-002): console in dev, OTLP in prod once the
-      // observability epic injects an `otelEmitter` here (ADR-0007).
-      sink: selectSink({ nodeEnv: config.NODE_ENV }),
-      context: "api",
-    }),
-  );
+  // Logger + its sink, built eagerly so the sink is reachable for teardown
+  // (flush + dispose on shutdown — FEAT-004 / FRD-002, ADR-0007).
+  const sink = selectSink({ nodeEnv: config.NODE_ENV });
+  const logger = createLogger({ level: config.LOG_LEVEL, sink, context: "api" });
+  container.registerValue(Tokens.Logger, logger);
+  container.onDispose(async () => {
+    await sink.flush();
+    await sink.dispose();
+  });
 
   container.registerValue(Tokens.Clock, systemClock);
 
-  container.register(Tokens.Db, () => createInMemoryDb());
+  const db = createInMemoryDb();
+  container.registerValue(Tokens.Db, db);
+  container.onDispose(() => db.close());
 
   return container;
 }
