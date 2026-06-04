@@ -4,6 +4,8 @@
 - **Date:** 2026-06-04
 - **Milestone / Sprint:** EPIC-002 (active-foundation) — `feat/di-hardening` (refines ADR-0004 / FEAT-003)
 
+> **Refined by [ADR-0013](0013-worker-pool-dispatch-strategy.md):** the worker-pool's round-robin dispatch (below) was extracted into a pluggable `DispatchStrategy`; the default is now FIFO-backpressure, with `roundRobin()` kept as a named study baseline. The share-nothing model here is unchanged.
+
 ## Context
 
 The token container (ADR-0004) is slated to graduate into a reusable internal library (`@consolidados/di`). The question that drove this pass: is it production-ready under **Bun workers/threads**? Findings:
