@@ -53,7 +53,14 @@ export function bootstrap(
   }
   const appLogger = loggerResult.value();
 
-  const app = createApp({ config: appConfig });
+  // Db handle is eagerly registered in the composition root too — read it back
+  // synchronously for the readiness probe wired into the app (FEAT-006).
+  const dbResult = container.peek(Tokens.Db);
+  if (dbResult.isErr()) {
+    return Err(BootstrapError.wiring(dbResult.value()));
+  }
+
+  const app = createApp({ config: appConfig, logger: appLogger, db: dbResult.value() });
 
   return Ok({
     app,
