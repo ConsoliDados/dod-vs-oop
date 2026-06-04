@@ -52,7 +52,7 @@ Read [[docs/ddd-dod/architecture/playbook/playbook-base.md]] and [[docs/ddd-dod/
 4. `docs/ddd-dod/architecture/playbook/playbook-ts.md` — TypeScript/Bun rules and examples.
 5. `docs/ddd-dod/architecture/sad.md` — system architecture (the DOD independent variables).
 6. `docs/ddd-dod/architecture/srs.md` — requirements contract (shared, byte-for-byte with `ddd-classic`).
-7. `docs/ddd-dod/architecture/adrs/` — locked-in decisions (ADR-0001..0011); check before deviating.
+7. `docs/ddd-dod/architecture/adrs/` — locked-in decisions (ADR-0001..0012); check before deviating.
 8. `docs/ddd-dod/architecture/sdds/` (when present) — per-domain tactical bible.
 9. `docs/ddd-dod/epics/` — active epic + `exits_with` + Mode B features.
 10. `../README.md` — public overview of the study; `../../PLAN.md` — internal source of truth.
