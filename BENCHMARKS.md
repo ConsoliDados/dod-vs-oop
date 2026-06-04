@@ -51,6 +51,12 @@ budget, zero cross-side contention.
 **`nginx`** is the reverse proxy / LB (tiny footprint, no GC → predictable tail latency; not
 Traefik). **Proxy is identical on both sides** — not the variable.
 
+**Docker networking — `network_mode: host`, never bridge.** Bridge adds NAT + the userland
+proxy + an extra hop that inflates latency and caps throughput — you'd be measuring Docker,
+not the app. Host networking puts k6 → nginx → api → postgres on the host net, so the numbers
+are the stack's. (Trade-off: no inter-container port isolation — fine for a benchmark rig;
+ports just must not collide.) **Identical on both sides**, so it's not a confounder.
+
 Benches 2 & 4 drop the topology and run in-process against sqlite `:memory:` (no DB I/O),
 for the isolated/controlled numbers.
 
