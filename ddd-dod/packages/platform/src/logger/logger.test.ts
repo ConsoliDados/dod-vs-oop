@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { create, type LogRecord, type LogSink } from "../src/logger";
+import { create, type LogRecord, type LogSink } from "./index";
 
 function captureSink(): { records: LogRecord[]; sink: LogSink } {
   const records: LogRecord[] = [];

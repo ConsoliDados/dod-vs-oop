@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { LedgerError } from "../src/error";
+import { LedgerError } from "./error";
 
 describe("LedgerError", () => {
   test("format renders string and object variants through match", () => {

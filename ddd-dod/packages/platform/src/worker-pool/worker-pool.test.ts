@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
-import { createWorkerPool } from "../src/worker-pool";
+import { createWorkerPool } from "./index";
 
-const workerUrl = new URL("./fixtures/double.worker.ts", import.meta.url);
+const workerUrl = new URL("../test-helpers/fixtures/double.worker.ts", import.meta.url);
 
 describe("worker-pool — real Bun workers", () => {
   test("dispatches tasks across workers and returns Ok results", async () => {

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { AccountsError } from "../src/error";
+import { AccountsError } from "./error";
 
 describe("AccountsError", () => {
   test("format renders string and object variants through match", () => {

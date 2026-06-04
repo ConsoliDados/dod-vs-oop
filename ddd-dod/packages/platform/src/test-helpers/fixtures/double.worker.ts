@@ -1,4 +1,4 @@
-import { serveWorker } from "../../src/worker-pool";
+import { serveWorker } from "../../worker-pool";
 
 /**
  * Test fixture worker: doubles a number, throws on a negative input (to exercise

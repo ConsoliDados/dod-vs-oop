@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { createContainer, type Disposable, token } from "../src/di";
+import { createContainer, type Disposable, token } from "./index";
 
 describe("DI container — resolution (all-async)", () => {
   test("resolves a registered singleton factory once (memoized)", async () => {

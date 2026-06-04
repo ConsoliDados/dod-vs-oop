@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { ConfigError, load } from "../src/config";
+import { ConfigError, load } from "./index";
 
 describe("loadConfig", () => {
   test("accepts a valid environment", () => {

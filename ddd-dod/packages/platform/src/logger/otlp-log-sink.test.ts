@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { create, createOtlpLogSink, type OtelLogData, type OtelLogEmitter } from "../src/logger";
+import { create, createOtlpLogSink, type OtelLogData, type OtelLogEmitter } from "./index";
 
 function captureEmitter(): { records: OtelLogData[]; emitter: OtelLogEmitter } {
   const records: OtelLogData[] = [];
