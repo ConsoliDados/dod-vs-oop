@@ -12,6 +12,10 @@ const ConfigSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   PORT: z.coerce.number().int().positive().max(65535).default(3333),
   LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).default("info"),
+  /** Absent → sqlite `:memory:` (Phase 2 / dev / test); a `postgres(ql)://…`
+   *  URL → Postgres (Phase 1 rinha). The driver is picked in `platform/db`
+   *  from this value (ADR-0012). */
+  DATABASE_URL: z.string().optional(),
 });
 
 export type AppConfig = Readonly<z.infer<typeof ConfigSchema>>;
