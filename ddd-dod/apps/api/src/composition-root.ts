@@ -25,9 +25,9 @@ export function buildContainer(appConfig: config.AppConfig): di.Container {
 
   container.registerValue(Tokens.Clock, clock.system);
 
-  // Persistence: the driver is chosen here (dirty layer) from config —
-  // sqlite `:memory:` by default, Postgres when DATABASE_URL is set (ADR-0012).
-  // Per-context adapters (EPIC-003) are wired off this handle's driver.
+  // Persistence: the driver is chosen here (dirty layer) from the **resolved**
+  // `DATABASE_URL` (config guarantees it — `:memory:` only under test, else a real
+  // URL/parts; ADR-0012 corrected). Per-context adapters (EPIC-003) wire off the driver.
   const database = db.create(appConfig.DATABASE_URL);
   container.registerValue(Tokens.Db, database);
   container.onDispose(() => database.close());

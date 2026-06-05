@@ -7,18 +7,36 @@ import { z } from "zod";
  * keys (not `.strict()`: `process.env` legitimately carries hundreds of
  * unrelated keys). `PORT` defaults to `3333` — never `3000`, which is reserved
  * for a frontend.
+ *
+ * **Persistence (ADR-0012, corrected 2026-06-04).** `:memory:` is **test-only**,
+ * never a general fallback. `DATABASE_URL` is **required when `NODE_ENV !== test`**
+ * and is *resolved* here (see {@link loadConfig}): an explicit `DATABASE_URL` wins
+ * (any env) → else a Postgres URL is **built from the `DB_*` parts** → else, under
+ * `test`, it falls back to `:memory:` → otherwise the load is an `Err`. The `DB_*`
+ * parts are inputs only — they never appear on {@link AppConfig}.
  */
 const ConfigSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   PORT: z.coerce.number().int().positive().max(65535).default(3333),
   LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).default("info"),
-  /** Absent → sqlite `:memory:` (Phase 2 / dev / test); a `postgres(ql)://…`
-   *  URL → Postgres (Phase 1 rinha). The driver is picked in `platform/db`
-   *  from this value (ADR-0012). */
   DATABASE_URL: z.string().optional(),
+  DB_HOST: z.string().optional(),
+  DB_PORT: z.coerce.number().int().positive().max(65535).optional(),
+  DB_USER: z.string().optional(),
+  DB_PASS: z.string().optional(),
+  DB_DATABASE: z.string().optional(),
 });
 
-export type AppConfig = Readonly<z.infer<typeof ConfigSchema>>;
+type RawConfig = z.infer<typeof ConfigSchema>;
+
+/** The resolved, frozen config the app runs on. `DATABASE_URL` is always present
+ *  (resolved per ADR-0012); the `DB_*` input parts are not surfaced. */
+export type AppConfig = Readonly<{
+  NODE_ENV: RawConfig["NODE_ENV"];
+  PORT: number;
+  LOG_LEVEL: RawConfig["LOG_LEVEL"];
+  DATABASE_URL: string;
+}>;
 
 /**
  * One validation failure, **decoupled from the validator** (ADR-0008): a flat
@@ -72,5 +90,56 @@ export function loadConfig(
   if (!parsed.success) {
     return Err(ConfigError.invalidEnv(toIssues(parsed.error)));
   }
-  return Ok(Object.freeze(parsed.data));
+  const c = parsed.data;
+  const databaseUrl = resolveDatabaseUrl(c);
+  if (databaseUrl === null) {
+    return Err(
+      ConfigError.invalidEnv([
+        {
+          path: "DATABASE_URL",
+          message:
+            "required when NODE_ENV is not 'test' — set DATABASE_URL, or DB_HOST/DB_PORT/DB_USER/DB_PASS/DB_DATABASE",
+        },
+      ]),
+    );
+  }
+  return Ok(
+    Object.freeze({
+      NODE_ENV: c.NODE_ENV,
+      PORT: c.PORT,
+      LOG_LEVEL: c.LOG_LEVEL,
+      DATABASE_URL: databaseUrl,
+    }),
+  );
+}
+
+/**
+ * Resolve `DATABASE_URL` (ADR-0012, corrected): an explicit URL wins → else build
+ * a Postgres URL from the `DB_*` parts → else `:memory:` under `test` → else
+ * `null` (the caller turns it into a required-config `Err`). `:memory:` is
+ * **never** a non-test fallback.
+ */
+function resolveDatabaseUrl(c: RawConfig): string | null {
+  if (c.DATABASE_URL) {
+    return c.DATABASE_URL;
+  }
+  const fromParts = buildPostgresUrl(c);
+  if (fromParts) {
+    return fromParts;
+  }
+  return c.NODE_ENV === "test" ? ":memory:" : null;
+}
+
+/** Assemble `postgres://user:pass@host:port/database` from the `DB_*` parts. Needs
+ *  at least `DB_HOST` + `DB_DATABASE`; `DB_PORT` defaults to 5432; user/pass are
+ *  optional and percent-encoded. Returns `null` if the essentials are absent. */
+function buildPostgresUrl(c: RawConfig): string | null {
+  if (!c.DB_HOST || !c.DB_DATABASE) {
+    return null;
+  }
+  const port = c.DB_PORT ?? 5432;
+  const auth = c.DB_USER
+    ? `${encodeURIComponent(c.DB_USER)}${c.DB_PASS ? `:${encodeURIComponent(c.DB_PASS)}` : ""}@`
+    : "";
+  return `postgres://${auth}${c.DB_HOST}:${port}/${c.DB_DATABASE}`;
 }

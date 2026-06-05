@@ -71,7 +71,7 @@ ddd-dod/
 - **Logging** — structured JSON via the functional `platform` logger; fields not strings; one `child` logger per request carrying a `requestId`; logging happens at boundaries (use-case instrumentation, adapters), never inside pure domain functions.
 - **Config** — parsed and validated with Zod `.strict()` at process start (untrusted external input). `PORT` defaults to `3333` (never `3000`, reserved for a frontend).
 - **Validation scope (ADR-0006)** — Zod guards **external untrusted boundaries** (HTTP body, env, config). It does **not** guard the read path of a context reading its own tables: the context is the sole writer, the domain guarantees invariants on write, and schema drift is a migration concern, not a runtime guard. Repository rows are typed interfaces, not re-parsed.
-- **Persistence** — Drizzle over sqlite `:memory:` (ADR-0001), in-process for benchmark parity with `ddd-modern`. Repositories are hydrators (pattern #8).
+- **Persistence** — Drizzle; the driver comes from the **resolved** `DATABASE_URL` (ADR-0012, corrected): sqlite `:memory:` **only under `NODE_ENV=test`** (Phase-2 benchmark parity with `ddd-modern`, in-process), otherwise a real URL or `DB_*` parts (Postgres) — **required outside test**. `:memory:` is never a general fallback. Repositories are hydrators (pattern #8).
 - **Domain events** — published contracts in `shared-kernel`, versioned (`v: 1`); never mutate a published shape (deprecate + add). Delivered via the outbox (ADR-0003).
 
 ## 6. Dataflow example — post a transaction
