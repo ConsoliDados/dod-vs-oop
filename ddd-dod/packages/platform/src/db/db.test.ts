@@ -1,9 +1,10 @@
 import { describe, expect, test } from "bun:test";
+import { unlinkSync } from "node:fs";
 import { create, createSqlite } from "./index";
 
-describe("db — driver selection from DATABASE_URL", () => {
-  test("absent → sqlite :memory: handle", async () => {
-    const h = create(undefined);
+describe("db — driver selection from a resolved DATABASE_URL", () => {
+  test(":memory: → sqlite handle", async () => {
+    const h = create(":memory:");
     expect(h.driver).toBe("sqlite");
     await h.close();
   });
@@ -20,10 +21,16 @@ describe("db — driver selection from DATABASE_URL", () => {
     await h.close();
   });
 
-  test("a non-postgres string falls back to sqlite", async () => {
-    const h = create("file:./local.db");
+  test("a sqlite file URL → sqlite handle (opens the file)", async () => {
+    const path = `/tmp/ddd-dod-db-${process.pid}.db`;
+    const h = create(`file:${path}`);
     expect(h.driver).toBe("sqlite");
     await h.close();
+    try {
+      unlinkSync(path);
+    } catch {
+      // best-effort cleanup
+    }
   });
 });
 

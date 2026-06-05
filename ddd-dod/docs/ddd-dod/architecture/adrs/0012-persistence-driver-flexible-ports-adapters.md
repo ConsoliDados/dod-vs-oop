@@ -4,6 +4,20 @@
 - **Date:** 2026-06-04
 - **Milestone / Sprint:** EPIC-002 (active-foundation) — `feat/persistence` (FEAT-005)
 
+> **Correction (2026-06-04, `fix/db-url-resolution`).** The original Decision #1 made
+> `:memory:` the **absent-fallback for any env** and `DATABASE_URL` optional — which
+> contradicts the actual rule (sqlite `:memory:` is **test-only**). Corrected: `:memory:`
+> is the fallback **only when `NODE_ENV === "test"`**; otherwise `DATABASE_URL` is
+> **required** and is **resolved in config** — an explicit `DATABASE_URL` wins (any env),
+> else a Postgres URL is **built from `DB_*` parts** (`DB_HOST`/`DB_PORT`/`DB_USER`/
+> `DB_PASS`/`DB_DATABASE`), else (`test`) `:memory:`, else `Err`. `createDb` no longer
+> carries a `:memory:` fallback — it maps a *resolved* URL to a driver (`postgres://`→pg;
+> `:memory:`/`sqlite:`/`file:`/path→sqlite). **Why:** per-env-file control of host/port/
+> creds when several container sets run at once; unit tests mock the port (no DB),
+> integration tests set `DATABASE_URL` explicitly (honored even under `test`). The
+> ports/adapters + driver-flexible decision below is unchanged. Decision #1 is revised
+> accordingly.
+
 ## Context
 
 The study runs **two persistence configs** (see `STUDY-ROADMAP.md` / `PLAN.md` §5):
@@ -15,7 +29,7 @@ So `ddd-dod` must talk to **both** sqlite and Postgres (env-selected), unlike th
 
 ## Decision
 
-1. **Driver-flexible connection, chosen from config.** A single `createDb(databaseUrl)` in `packages/platform/src/db/` picks the driver: `postgres(ql)://…` → node-postgres pool; anything else (absent) → Bun `sqlite :memory:`. `DATABASE_URL` is an optional field on `AppConfig`. The driver is chosen **only here**.
+1. **Driver-flexible connection, chosen from a *resolved* `DATABASE_URL`** (revised — see Correction). Config resolves `DATABASE_URL` (explicit URL → `DB_*` parts → `:memory:` under `test` → else `Err`), so on `AppConfig` it is **always present** (a `string`, not optional). `createDb(databaseUrl: string)` in `packages/platform/src/db/` picks the driver from it: `postgres(ql)://…` → node-postgres pool; `:memory:` or a `sqlite:`/`file:`/bare path → Bun sqlite. **No `:memory:` fallback** lives in `createDb`. The driver is chosen **only here**.
 
 2. **Ports + adapters — not a shared schema, not a shape-factory.** The domain/application layers depend on a repository **port** (a hydrator returning plain data — SAD pattern #8), never on a Drizzle instance. Each bounded context ships **two concrete adapters** (a sqlite one and a pg one), each with its **own** dialect schema + queries. The composition root (the *dirty layer*) picks the connection by driver and wires the matching adapter. Drift between the two adapters is caught by running the **same repository contract tests** against both.
 

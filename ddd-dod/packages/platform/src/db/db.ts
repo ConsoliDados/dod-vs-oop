@@ -53,10 +53,11 @@ async function runProbe(run: () => unknown | Promise<unknown>): Promise<Result<v
   }
 }
 
-/** Bun sqlite `:memory:` (Phase 2 / dev / test). Ephemeral — the caller creates
- *  the schema on boot. */
-export function createSqliteDb(): SqliteDbHandle {
-  const raw = new Database(":memory:");
+/** Bun sqlite from a `target` (default `:memory:` — Phase 2 / dev / test;
+ *  ephemeral, the caller creates the schema on boot). A file path opens/creates a
+ *  durable sqlite file. */
+export function createSqliteDb(target = ":memory:"): SqliteDbHandle {
+  const raw = new Database(target);
   raw.exec("PRAGMA foreign_keys = ON;");
   const db = drizzleSqlite(raw);
   return {
@@ -86,14 +87,24 @@ export function createPgDb(url: string): PgDbHandle {
 }
 
 /**
- * Pick the driver from `DATABASE_URL`: a `postgres(ql)://…` URL → Postgres;
- * anything else (absent) → sqlite `:memory:`. This is the **only** place the
- * driver is chosen — the composition root calls it, then wires the matching
- * per-context adapters (ADR-0012).
+ * Pick the driver from a **resolved** `DATABASE_URL` (always present — config
+ * guarantees it, ADR-0012 corrected): a `postgres(ql)://…` URL → Postgres;
+ * `:memory:` or a `sqlite:`/`file:`/bare path → sqlite. This is the **only** place
+ * the driver is chosen — the composition root calls it, then wires the matching
+ * per-context adapters (ADR-0012). There is **no** `:memory:` fallback here: an
+ * absent URL is a config `Err`, except under `test` where config resolves `:memory:`.
  */
-export function createDb(databaseUrl: string | undefined): DbHandle {
-  if (databaseUrl && /^postgres(ql)?:\/\//.test(databaseUrl)) {
+export function createDb(databaseUrl: string): DbHandle {
+  if (/^postgres(ql)?:\/\//.test(databaseUrl)) {
     return createPgDb(databaseUrl);
   }
-  return createSqliteDb();
+  return createSqliteDb(sqliteTarget(databaseUrl));
+}
+
+/** Strip a `sqlite:`/`file:` scheme to a path; `:memory:` passes through. */
+function sqliteTarget(databaseUrl: string): string {
+  if (databaseUrl === ":memory:") {
+    return ":memory:";
+  }
+  return databaseUrl.replace(/^(sqlite|file):(\/\/)?/, "");
 }
