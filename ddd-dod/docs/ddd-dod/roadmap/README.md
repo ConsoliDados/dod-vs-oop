@@ -21,6 +21,8 @@ A **Milestone** is a roadmap-level delivery grouping — the construct that repl
 
 Create one with the Templater snippet `.obsidian/templates/milestone-template.md` (lands under `milestones/<id>-<slug>.md`). In planning, the question per domain is *"does this domain have an SDD yet? no → create one"*; cross-cutting work enters the milestone without an SDD.
 
+**Milestone ↔ Epic naming.** A milestone spanning **one** epic is **1:1** and **takes that epic's slug** — don't invent a redundant name (a lone `ledger-core` epic → milestone `ledger-core`). A milestone spanning **2+** epics gets its **own** deliverable name (`bootstrap` = scaffold + active-foundation). IDs are independent sequences — only the *slug* is shared in the 1:1 case (`MILESTONE-00X` and `EPIC-00Y` can differ in number). If a 1:1 milestone later grows a second epic, rename it to a grouping name.
+
 Portability (playbook §25): a Milestone maps to a Jira Initiative / Linear Project.
 
 ## Workflow

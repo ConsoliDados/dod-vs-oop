@@ -35,7 +35,7 @@ An **Epic references one SDD** via its `sdd:` field — it is *not* the same obj
 1. **Plan** — Create the epic file via Templater (`.obsidian/templates/epic-template.md`). Fill in `why`, `outcome`, `scope`, `exits_with`, and link the ADRs/SDDs you anticipate touching. Add to the kanban under **Planned**.
 2. **Activate** — When a sprint commits to advancing this epic, move to **Active** and set the sprint's `active_epic:` to point here.
 3. **Track** — Roadmap cards belonging to this epic carry `epic: <id>-<slug>` in their frontmatter. Sprint READMEs list `active_epic:`. Progress log appended in epic file as cards close.
-4. **Close** — When all `exits_with` are checked, move to **Done**. Per playbook §16.4, epic closing triggers a `dev → main` release (semver bump, tag, changelog entry).
+4. **Close** — When all `exits_with` are checked, move to **Done** (the epic merges to `dev` via PR — AGENTS §Branching). Per playbook §16.4, a `dev → main` release is triggered by **milestone** close at medium+ (by epic close at prototype/small) — semver bump, tag, changelog entry.
 5. **Park** — Use **Parked** for epics deferred indefinitely. Document the parking reason in the epic file.
 
 ## Relationship to other artefacts

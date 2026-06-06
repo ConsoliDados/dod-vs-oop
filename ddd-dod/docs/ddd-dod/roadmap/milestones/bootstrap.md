@@ -28,12 +28,12 @@ Take `ddd-dod` from nothing to a **buildable, tested, runnable** Bun monorepo wh
 ## Exit criteria (milestone)
 
 - [x] EPIC-001 (scaffold) closed — structure compiles, `bun run check` clean, `bun test` green, `/health` boots on 3333.
-- [ ] EPIC-002 (active-foundation) closed — all five features shipped with their FRDs and tests.
+- [ ] EPIC-002 (active-foundation) closed — all six features shipped with their FRDs and tests (closes on `epic/002-active-foundation → dev` PR).
 - [ ] `dev` carries a runnable foundation ready for EPIC-003 (ledger-core, the first domain milestone).
 
 ## Branching
 
-Per the project git flow (see root `AGENTS.md` → Branching): this milestone lands on `milestone/bootstrap`. Epics branch off it (`epic/scaffold`, `epic/active-foundation`); features branch off their epic (`feat/<slug>`) and **merge locally** into the epic; the epic merges into this milestone via **PR**; this milestone merges into `dev` via **PR**.
+Per the project git flow (root `AGENTS.md` → Branching, **medium tier**): **no milestone branch** — `bootstrap` is a planning grouping + the release marker. Its epics (`epic/scaffold` — done, pre-numbering; `epic/002-active-foundation`) branch off `dev`; features merge **locally** into their epic; each **epic → `dev` via PR**. The milestone ships when its epics are on `dev` (`dev → main` tag, playbook §16.4).
 
 ## Notes
 
