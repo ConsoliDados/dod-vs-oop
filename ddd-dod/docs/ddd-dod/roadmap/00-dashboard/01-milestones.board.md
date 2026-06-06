@@ -4,15 +4,15 @@ kanban-plugin: board
 
 ---
 
-## Initial
-
-- [ ] [[../001-example-card|001 — example card]]
-
-## In Progress
+## Planned
 
 
 
-## Done
+## Active
+
+- [ ] [[../01-milestones/001-bootstrap|001 — bootstrap]]
+
+## Shipped
 
 
 

@@ -8,7 +8,7 @@ status: done
 
 # Feature — di-container (FEAT-003)
 
-Live build trail. Spec: [`architecture/frds/frd-di-container.md`](../../../../architecture/frds/frd-di-container.md). The code is the Act.
+Live build trail. Spec: [`architecture/frds/frd-di-container.md`](../../architecture/frds/frd-di-container.md). The code is the Act.
 
 ## Tasks (from FRD §5)
 

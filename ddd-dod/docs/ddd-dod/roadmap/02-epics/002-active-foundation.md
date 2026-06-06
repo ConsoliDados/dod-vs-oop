@@ -27,7 +27,7 @@ exits_with:
 
 ## Feature placement
 
-**Mode B (epic-bound)** — features live at `epics/002-active-foundation/features/<slug>/` (the live build trail + code); each feature's spec is a flat FRD at `architecture/frds/frd-<slug>.md` (written when the feature is picked up — RPA as mental discipline). Sprint planning is collapsed into this README.
+**Flat roadmap (kanban-flow).** Feature cards live at `../03-features/<NNN>-<slug>.md` (live build trail; the code is the Act in `apps/`/`packages/`), linked to this epic via `epic:`; each feature's spec is a flat FRD at `../../architecture/frds/frd-<slug>.md`. No sprint — planning is collapsed here (playbook §23; Scrum/Mode A is the alternative).
 
 ## Features
 

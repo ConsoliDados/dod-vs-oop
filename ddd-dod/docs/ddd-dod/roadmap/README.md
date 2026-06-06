@@ -5,15 +5,19 @@ Source of truth for **commitments** — work that has been decided and will (or 
 ## Layout
 
 ```
-roadmap/
-├── _dashboard/
-│   └── board.md          ← Obsidian Kanban view; columns: Initial / In Progress / Done
-├── milestones/
-│   └── <id>-<slug>.md    ← per-milestone card (delivery grouping; spans 1..N SDDs/epics)
-├── archived/             ← delivered/closed cards & milestones (never delete; move here)
-├── <id>-<slug>.md        ← per-card file with planning notes
-└── README.md             ← this file
+roadmap/   (= the production esteira: committed work, tracked at 3 levels — flat, ref-based)
+├── 00-dashboard/
+│   ├── 00-dashboard.md          ← Dataview overview (milestone→epic→feature × status), one pane
+│   ├── 01-milestones.board.md   ← kanban: Planned · Active · Shipped
+│   ├── 02-epics.board.md        ← kanban: Planned · Active · Done · Parked
+│   └── 03-features.board.md     ← kanban: Todo · Doing · Review · Done
+├── 01-milestones/   <NNN>-<slug>.md   ← milestone cards (e.g. 001-bootstrap.md)
+├── 02-epics/        <NNN>-<slug>.md   ← epic cards (+ README = epic conventions)
+├── 03-features/     <NNN>-<slug>.md   ← feature cards (card + live trail; ref epic + frd)
+└── README.md                          ← this file
 ```
+
+Containment is by **reference** (a card's `milestone:`/`epic:` frontmatter), not by folder nesting — short greppable paths, re-parent = a field edit, hierarchy rendered in `00-dashboard.md`.
 
 ## Milestones
 
@@ -28,7 +32,7 @@ Portability (playbook §25): a Milestone maps to a Jira Initiative / Linear Proj
 ## Workflow
 
 1. A card from the backlog gets **promoted** to the roadmap once the work is decided to happen. Move the card's file into `roadmap/<id>-<slug>.md` (rename ID prefix as needed) and add it to the kanban under **Initial**. Set its `epic:` (and, if known, `frd:`/`sdd:`).
-2. When work starts, move the card to **In Progress**. The card belongs to an **Epic** (which references one **SDD** — a domain — via `sdd:`, or none if cross-cutting) and is realized by one **Feature** (1:1 with one **FRD**). If the FRD doesn't exist yet, author it as the flat file `../architecture/frds/frd-<slug>.md` (RPA is a mental discipline — one artifact, no `research.md`/`plan.md` siblings). Then create the **feature-keyed** build folder under `../sprints/<sprint>/features/<feature-slug>/README.md` (Mode A) or the active epic's `features/<feature-slug>/README.md` (Mode B). The code is the Act; each feature `README.md` is its live trail. There is **no `frds/` folder in the build**.
+2. When work starts, move the card to **In Progress**. The card belongs to an **Epic** (which references one **SDD** — a domain — via `sdd:`, or none if cross-cutting) and is realized by one **Feature** (1:1 with one **FRD**). If the FRD doesn't exist yet, author it as the flat file `../architecture/frds/frd-<slug>.md` (RPA is a mental discipline — one artifact, no `research.md`/`plan.md` siblings). Then create the **feature card** `03-features/<NNN>-<slug>.md` (references the FRD via `frd:` and the epic via `epic:`). The code is the Act; the feature card is its live trail. There is **no `frds/` folder in the build** — the FRD spec stays in `architecture/frds/`. (Scrum/Mode A with `sprints/` is the documented alternative — playbook §23.)
 3. When the feature ships, move the card to **Done**. Update `../architecture/playbook/playbook-base.md`/`../architecture/adrs/` if the work produced rules or decisions worth keeping.
 
 ## Archiving delivered work
@@ -41,6 +45,6 @@ See the Templater snippet at `.obsidian/templates/spec-template.md` (run via Tem
 
 ## Reading order for a fresh agent session
 
-1. `_dashboard/board.md` — what's in flight right now.
+1. `00-dashboard/` — the kanban boards (milestone/epic/feature) + the Dataview overview — what's in flight right now.
 2. `milestones/` — the active delivery grouping and the SDDs/epics it delivers.
 3. The card file(s) in **In Progress** — context for the current work.

@@ -8,7 +8,7 @@ status: done
 
 # Feature — config (FEAT-001)
 
-Live build trail. Spec: [`architecture/frds/frd-config.md`](../../../../architecture/frds/frd-config.md). The code is the Act — no separate `act.md`.
+Live build trail. Spec: [`architecture/frds/frd-config.md`](../../architecture/frds/frd-config.md). The code is the Act — no separate `act.md`.
 
 ## Tasks (from FRD §5)
 

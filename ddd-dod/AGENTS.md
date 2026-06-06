@@ -54,7 +54,7 @@ Read [[docs/ddd-dod/architecture/playbook/playbook-base.md]] and [[docs/ddd-dod/
 6. `docs/ddd-dod/architecture/srs.md` — requirements contract (shared, byte-for-byte with `ddd-classic`).
 7. `docs/ddd-dod/architecture/adrs/` — locked-in decisions (ADR-0001..0012); check before deviating.
 8. `docs/ddd-dod/architecture/sdds/` (when present) — per-domain tactical bible.
-9. `docs/ddd-dod/epics/` — active epic + `exits_with` + Mode B features.
+9. `docs/ddd-dod/roadmap/` — the production esteira: `02-epics/` (active epic + `exits_with`), `03-features/`, `01-milestones/`, `00-dashboard/` (kanban boards + Dataview overview).
 10. `../README.md` — public overview of the study; `../../PLAN.md` — internal source of truth.
 
 If a decision in an ADR conflicts with what you intend to do, either follow the ADR or flag the discrepancy. Never silently deviate.

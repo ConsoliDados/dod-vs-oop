@@ -8,7 +8,7 @@ status: done
 
 # Feature — logger (FEAT-002)
 
-Live build trail. Spec: [`architecture/frds/frd-logger.md`](../../../../architecture/frds/frd-logger.md). The code is the Act.
+Live build trail. Spec: [`architecture/frds/frd-logger.md`](../../architecture/frds/frd-logger.md). The code is the Act.
 
 ## Tasks (from FRD §5)
 

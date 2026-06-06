@@ -122,8 +122,8 @@ Read in this order. Resist the urge to skim.
 5. **`docs/ddd-dod/architecture/srs.md`** (medium+) — requirements contract.
 6. **`docs/ddd-dod/architecture/adrs/`** — locked-in decisions. Skim titles; read those touching the area you'll work in.
 7. **`docs/ddd-dod/architecture/sdds/`** (when present) — flat files `sdd-<slug>.md`, the tactical design per bounded context (the domain bible an epic references). **`architecture/frds/`** (medium+) — flat files `frd-<slug>.md`, the "what" of each functionality.
-8. **`docs/ddd-dod/epics/`** — `_dashboard/board.md` (or flat `epics.md`) shows what's Active. Open the active epic (follow its `sdd:` to the domain bible).
-9. **`docs/ddd-dod/sprints/<active-sprint>/features/`** (Mode A) **or** the active epic's `features/` (Mode B) — current build work (Mode C: `features/` at docs root).
+8. **`docs/ddd-dod/roadmap/`** — the production esteira. `00-dashboard/` (kanban boards + Dataview overview) shows what's Active; open the active epic in `02-epics/` (follow its `sdd:` to the domain bible).
+9. **`docs/ddd-dod/roadmap/03-features/`** — feature cards = current build trails (the code is the Act, in `apps/`/`packages/`). (Scrum/Mode A with `sprints/` is the documented alternative — playbook §23.)
 10. **`docs/ddd-dod/open-questions.md`** — unresolved decisions that may block progress.
 
 By the end of Day 1 you should be able to answer:
@@ -245,7 +245,7 @@ Move file from `backlogs/<id>-<slug>.md` → `roadmap/<id>-<slug>.md` (rename ID
 Templater → `epic-template.md` → fill `why`, `outcome`, `scope`, `exits_with`. Set `sdd:` to the one SDD this epic delivers (or leave blank if cross-cutting). Kanban: **Planned**. Move to **Active** when a sprint commits to it (Mode A) or when the first feature lands inside (Mode B/C).
 
 ### 6.3b Create a Milestone
-Templater → `milestone-template.md` → lands under `roadmap/milestones/<slug>.md` (or a section in `roadmap/`). A milestone is a **management** delivery grouping that spans 1..N SDDs/epics plus cross-cutting work (Milestone : SDD = 1 : N). Fill the window, the SDDs/epics it delivers (by ref), cross-cutting items, and the exit. It references docs; docs never point back.
+Templater → `milestone-template.md` → lands under `roadmap/01-milestones/<NNN>-<slug>.md`. A milestone is a **management** delivery grouping that spans 1..N SDDs/epics plus cross-cutting work (Milestone : SDD = 1 : N). Fill the window, the SDDs/epics it delivers (by ref), cross-cutting items, and the exit. It references docs; docs never point back.
 
 ### 6.4 Close an epic
 Verify all `exits_with` checked. Move kanban entry to **Done**. Follow §5 (release).
@@ -358,6 +358,6 @@ When `EPIC-001 — bootstrap` reaches `status: done` (its `exits_with` are all c
 | Find the "what" of a functionality (1:1 with its Feature) | `architecture/frds/frd-<slug>.md` (medium+; in the SDD's "Functionalities" section at prototype/small) |
 | Find the source of truth for a decision | `architecture/adrs/<NNNN>-<slug>.md` |
 | Track unresolved decisions | `open-questions.md` |
-| Know what the team is doing now | `epics/_dashboard/board.md` + active sprint / epic |
+| Know what's being done now | `roadmap/00-dashboard/` (boards + Dataview overview) |
 
 If a question isn't covered here or in the playbook, raise it in chat and update this doc once resolved. **Methodology drift is bigger than code drift — catch it early.**

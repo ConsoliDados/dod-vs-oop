@@ -6,15 +6,15 @@ kanban-plugin: board
 
 ## Planned
 
-- [ ] [[../002-active-foundation/README|002 — active-foundation]]
+
 
 ## Active
 
-
+- [ ] [[../02-epics/002-active-foundation|002 — active-foundation]]
 
 ## Done
 
-- [x] [[../001-scaffold|001 — scaffold]]
+- [x] [[../02-epics/001-scaffold|001 — scaffold]]
 
 
 ## Parked

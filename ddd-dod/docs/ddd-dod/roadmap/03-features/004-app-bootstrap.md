@@ -8,7 +8,7 @@ status: done
 
 # Feature — app-bootstrap (FEAT-004)
 
-Live build trail. Spec: [`architecture/frds/frd-app-bootstrap.md`](../../../../architecture/frds/frd-app-bootstrap.md). Reference: my-approfile `services/auth` (`bootstrap.ts` + `main.ts`). The code is the Act.
+Live build trail. Spec: [`architecture/frds/frd-app-bootstrap.md`](../../architecture/frds/frd-app-bootstrap.md). Reference: my-approfile `services/auth` (`bootstrap.ts` + `main.ts`). The code is the Act.
 
 ## Tasks (from FRD §5)
 
