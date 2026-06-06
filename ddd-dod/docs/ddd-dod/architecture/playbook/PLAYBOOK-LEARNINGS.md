@@ -89,6 +89,33 @@ apps/api-fastify/  src/http/...  + composition root    # inbound, framework B
 
 ---
 
+## L-002 — Branching: tiered git-flow, numbered branches, commit-driven CI/CD
+
+**Source:** branching-model decision (2026-06-06). Refines playbook **§16.2 / §16.3 / §16.4**.
+**Folded to the template immediately** (`templates/project_templates/playbooks/playbook-base.md`)
+with the author's explicit consent — an **exception** to the default "apply here, fold at close":
+the convention is project-agnostic, so it went straight into the template **and** this project's copy.
+
+### What changed
+- **`milestone` is not a branch** (≤ medium). It is a planning grouping + the release marker (the
+  `dev → main` tag). The old `milestone → epic → feature` nesting (a ddd-dod extension) collapses:
+  **`epic` is the PR unit to `dev`**.
+- **Numbered branches matching roadmap cards:** `feat/<NNN>-<slug>`, `epic/<NNN>-<slug>`,
+  `release/<NNN>-<slug>` (3 digits; FEAT-006 → `feat/006-…`). Namespace = type (greppable), `<slug>`
+  unscoped.
+- **Tier scaling:** prototype/small `feat→dev`; medium `feat→epic (local) → dev (PR)`; large adds a
+  `release/<NNN>` stabilisation branch (`release→dev→main`).
+- **CI/CD split:** gates trigger off **refs**; release version/changelog come from **Conventional
+  Commits** (not branch names) → free to use our own names. Add a `commitlint` gate; keep
+  `feat:`/`fix:` commits readable across merges (preserve or Conventional squash titles).
+
+### Carry-back note
+Already applied to `playbook-base.md` §16.2 (rewritten "Git Flow (tiered)"), §16.3 (PR-unit-by-tier
+note), §16.4 (epic/milestone-close trigger) in **both** the template and this project's copy — **no
+further fold needed at close** for this item.
+
+---
+
 ## Index of other OQ-001 items (write-ups pending)
 
 These are tracked in OQ-001 and will get full write-ups here as they're folded:

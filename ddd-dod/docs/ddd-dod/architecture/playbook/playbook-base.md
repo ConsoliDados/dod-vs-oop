@@ -268,18 +268,25 @@ chore: bump tokio to 1.x
 
 Multi-line commit messages preferred when the change has any subtlety. The body explains *why*; the diff explains *what*.
 
-### 16.2 Git Flow
+### 16.2 Git Flow (tiered)
 
-- `main` is release-tagged, deployable, and always builds. After bootstrap it only receives merges from release branches (or hotfix branches in emergencies).
-- `dev` is the **default working branch** and the integration target. Day-to-day work targets `dev`.
-- Feature work happens on `feat/<name>` branches off `dev` and **squash-merges** back into `dev` via PR.
-- Release branches off `dev` merge into `main` (tagged) and back into `dev`.
+- `main` is release-tagged, deployable, and always builds. After bootstrap it receives `dev` per release (or a `hotfix/<slug>` in emergencies).
+- `dev` is the integration target.
+- **Branch naming:** `feat/<NNN>-<slug>`, `epic/<NNN>-<slug>`, `release/<NNN>-<slug>` — `<NNN>` is the roadmap card number, 3 digits (FEAT-006 → `feat/006-…`, EPIC-002 → `epic/002-…`); `<slug>` is unscoped (no project prefix). The namespace **is** the type, so `git branch --list 'epic/*'` works.
+- **The flow scales by tier (§21):**
+  - **prototype / small** — `feat/<NNN>-<slug>` off `dev` → **PR to `dev`**. No epic branch.
+  - **medium** — features merge **locally** into an `epic/<NNN>-<slug>` branch (the cohesive batch); the **epic is the PR unit to `dev`** (one `dev` PR per epic).
+  - **large** — epics PR into a `release/<NNN>-<slug>` branch (stabilise a milestone off `dev`); `release → dev → main`.
+- **`milestone` is a planning grouping + a release marker (tag/label), never a branch** — except the large-tier `release/<NNN>` stabilisation branch. A release (`dev → main`) ships a milestone's epics (§16.4).
+- **CI/CD split (important):** *what gates run* triggers off **refs** (PR→`dev`, push→`main`, `release/*`) — these are **your** refs, so you are **not** bound to gitflow's `feature/`/`release/`/`hotfix/` names. *Release semantics* (version bump + changelog) are computed from **Conventional Commits** (§16.1), not branch names — so keep meaningful `feat:`/`fix:` commits readable on `dev`/`main` (preserve them on merge, or use a Conventional squash title) and enforce them with a `commitlint` gate.
 
 For the bootstrap-time setup of these branches and their hooks/CI, see §17.
 
 ### 16.3 Per-feature workflow (post-bootstrap)
 
 Once the bootstrap window closes (§17.2), every feature follows this loop. **The agent does not skip steps; the human gates the PR.**
+
+> **PR unit by tier (§16.2).** At prototype/small the loop targets `dev` with a `feat/<NNN>-<slug>` branch. At **medium+** the PR unit is the **`epic/<NNN>-<slug>`** branch — features merge **locally** into the epic (no push-gate), and the loop below runs once at the **epic → `dev`** boundary (read the epic branch for the branch name in the steps).
 
 1. Sync and branch: `git checkout dev && git pull && git checkout -b feat/<name>`.
 2. Implement, commit (Conventional Commits per §16.1). Multiple small commits are fine — they will squash on merge.
@@ -292,9 +299,9 @@ Once the bootstrap window closes (§17.2), every feature follows this loop. **Th
 
 The push-before-PR step is intentional: it gives the human a real branch to inspect before any GitHub state (PR comments, reviewers, CI minutes) is created.
 
-### 16.4 Release on epic close
+### 16.4 Release on epic / milestone close
 
-Releases (`dev → main` merges with a tag) are **triggered by epic closure**, not by sprint boundaries or a calendar.
+Releases (`dev → main` merges with a tag) are **triggered by closure**, not by sprint boundaries or a calendar: at prototype/small, by **epic** closure; at **medium+**, by **milestone** closure (all its epics merged to `dev`). The milestone is the release grouping (§16.2).
 
 When an epic moves to `status: done` (all `exits_with` items checked — see `../epics/`):
 

@@ -96,28 +96,26 @@ Conventional Commits per playbook §16.1. Scopes for this repo:
 
 `platform`, `shared-kernel`, `ledger`, `accounts`, `statements`, `reconciliation`, `api`, `(meta)`, `(docs)`, `(ci)`.
 
-### Branching — three-tier flow (adjusted Git Flow)
+### Branching — medium-tier flow (playbook §16.2)
 
-`ddd-dod` is a sub-project of the public `dod-vs-oop` repo (shared git; CI is per-example at the repo root). We extend playbook §16.2 with a **milestone → epic → feature** branch hierarchy:
+`ddd-dod` is a sub-project of the public `dod-vs-oop` repo (shared git; CI is per-example at the repo root). It runs the **medium** tier of playbook §16.2 — **no `milestone` branch**; a milestone is a planning grouping + the release marker.
 
 ```
 dev
-└── milestone/<slug>            landing branch for a milestone (e.g. milestone/bootstrap)
-    └── epic/<slug>             one per epic (e.g. epic/scaffold, epic/active-foundation)
-        └── feat/<slug>         one per feature (e.g. feat/logger)
+└── epic/<NNN>-<slug>           one per epic — the PR unit to dev (e.g. epic/002-active-foundation)
+    └── feat/<NNN>-<slug>       one per feature — merged LOCALLY into its epic (e.g. feat/006-http-app)
 ```
 
 **Merge policy (non-negotiable):**
-- `feat/<slug>` → `epic/<slug>` — **local merge** (no PR).
-- `epic/<slug>` → `milestone/<slug>` — **PR**.
-- `milestone/<slug>` → `dev` — **PR**.
-- `main` — production; receives `dev` per release (playbook §16.4).
+- `feat/<NNN>-<slug>` → `epic/<NNN>-<slug>` — **local merge** (no PR).
+- `epic/<NNN>-<slug>` → `dev` — **PR** (one dev PR per epic).
+- `dev` → `main` — **release** (tag), grouped by milestone (playbook §16.4). `milestone` is **never a branch** at this tier.
 
-Branch slugs are **unscoped** (`epic/active-foundation`, not `epic/ddd-dod-active-foundation`).
+`<NNN>` is the roadmap card number (3 digits, matching the card: FEAT-006 → `feat/006-…`, EPIC-002 → `epic/002-…`); `<slug>` is unscoped (no `ddd-dod-` prefix). **CI/CD:** gates trigger off refs; release version + changelog come from Conventional Commits (§16.1) — see playbook §16.2.
 
 ### Bootstrap-phase exception
 
-Within MILESTONE-001 (bootstrap), the **scaffold** epic (`epic/scaffold`) is allowed direct commits (no per-feature PRs) — it is pure structure/config. From EPIC-002 (active-foundation) onward, every feature follows the three-tier flow above (feat → epic local, epic → milestone PR).
+Within MILESTONE-001 (bootstrap), the **scaffold** epic (`epic/scaffold`, pre-numbering) was allowed direct commits (no per-feature PRs) — pure structure/config. From EPIC-002 (active-foundation) onward, every feature follows the flow above (feat → epic local, **epic → dev PR**).
 
 ### Errors
 
