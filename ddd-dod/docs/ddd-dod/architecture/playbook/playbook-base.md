@@ -533,48 +533,44 @@ Consequences:
 
 ## 23. Feature placement modes
 
-> **The production esteira is the roadmap (default); a sprint is an optional addendum.** Committed work lives in `roadmap/{01-milestones,02-epics,03-features}` as **reference-based cards** (containment by `milestone:`/`epic:`/`frd:` frontmatter — see `roadmap/README.md`), and *that* is the default production track because it's what stakeholders, PO, and product understand. A team **may additionally** impose a **sprint as a timebox** (Scrum/kanban) over the esteira — that's **Mode A** below — but the sprint is an *overlay*, never a replacement, and the `sprints/` folder does **not** ship by default. **Default = no sprint** (Mode B epic-bound, or Mode C flat). The feature's **card / live-trail is always the ref-based `roadmap/03-features/<NNN>-<slug>.md`**; the folder examples in the modes below show only where the **code** (the Act) sits in the source tree — treat their `README.md` as that card (linked), not a second trail.
->
-> *(Follow-up: the Mode A/B/C bodies below still describe the pre-consolidation folder-nested layout; they read correctly as "where the code lives" but want a rewrite to fully match the ref-based roadmap.)*
-
-Where work physically lives is orthogonal to the tier. **The unit that gets placed is the Feature** — one Feature = one FRD (1:1) = one build folder holding a `README.md` (the live trail) **and the code (the Act)**. There is **no `frds/` folder in the build** and **no `act.md`**: the FRD *spec* lives in `architecture/frds/frd-<slug>.md`; the build is keyed by the feature slug. The 1–2 day units inside a Feature are its **Tasks** (a `- [ ]` checklist in the README, sourced from the FRD's Tasks section). Three modes:
-
-### Mode A — Sprint-bound
-
-```
-sprints/sprint-NN/
-├── README.md
-├── planning.md                       (medium+)
-└── features/<feature-slug>/
-    ├── README.md                     ← live trail: Tasks checklist, surprises, retro
-    └── …code…                        ← the Act (or code lives in the source tree, README links it)
-```
-
-**When**: team ≥ 3 contributors **or** capacity is the binding constraint (people split across many features, need time-boxing to focus). Sprints exist to box capacity.
+Placement mode is **orthogonal to tier** and answers one question: do you impose a **sprint timebox** over the roadmap, or not? Either way **the roadmap is the default**: committed work is **reference-based cards** in `roadmap/{01-milestones,02-epics,03-features}` (containment by `milestone:`/`epic:`/`frd:` frontmatter — see `roadmap/README.md`), which is what stakeholders, PO, and product understand. **The unit placed is the Feature** — one Feature = one FRD (1:1). Its **card / live-trail is always `roadmap/03-features/<NNN>-<slug>.md`** (the FRD's Tasks become its `- [ ]` checklist); the **code is the Act** in the source tree. There is **no `frds/` folder in the build** and **no `act.md`**: the FRD *spec* lives in `architecture/frds/frd-<slug>.md`. Three modes:
 
 ### Mode B — Epic-bound (project default)
 
+No sprint. Feature cards flow through the **active epic** (via `epic:` frontmatter); the rhythm is per-feature, not per-iteration.
+
 ```
-epics/<epic-id>-<slug>/                ← the epic (README frontmatter: sdd: sdd-<slug>)
-├── README.md                          ← the epic itself; references its SDD
-└── features/<feature-slug>/
-    ├── README.md                      ← live trail (frontmatter: frd: frd-<slug>, mode: B)
-    └── …code…                         ← the Act
+roadmap/02-epics/<NNN>-<slug>.md          ← the epic card (sdd: ref)
+roadmap/03-features/<NNN>-<slug>.md       ← feature card: epic: <…>, frd: FRD-<NNN> (live trail)
+<source tree>/…code…                      ← the Act
 ```
 
-**When**: 1–2 contributors using kanban-flow without rigid time-boxes. Features advance as the epic progresses; the rhythm is per-feature, not per-sprint. `sprints/` directory stays empty or absent.
-
-This is the canonical mode for "medium tier without sprints" — the structure you reach for when sprints would be ceremony.
+**When**: 1–2 contributors using kanban-flow without rigid time-boxes. `sprints/` is absent. The canonical "medium tier without sprints" — the shape you reach for when sprints would be ceremony.
 
 ### Mode C — Flat continuous
 
+No sprint; epics optional. Feature cards flow continuously; the FRD/SDD layering is absorbed upstream (`srs+sad.md`).
+
 ```
-features/<feature-slug>/
-├── README.md                          ← live trail; frontmatter has `frd:` (and `epic:` when it exists)
-└── …code…                             ← the Act
+roadmap/03-features/<NNN>-<slug>.md       ← feature card: frd: FRD-<NNN> (and epic: when one exists)
+<source tree>/…code…                      ← the Act
 ```
 
-**When**: prototype tier that wants flow discipline without the epic/sprint apparatus. The FRD/SDD layering is absorbed upstream (in `srs+sad.md`), so the placed unit is the feature directly. Each feature is self-contained; epics may or may not exist (when they do, the feature references them via frontmatter).
+**When**: prototype tier that wants flow discipline without the epic/sprint apparatus. Each feature is self-contained; epics may or may not exist (referenced via frontmatter when they do).
+
+### Mode A — Sprint-bound (optional overlay)
+
+Adds a **sprint timebox** over the roadmap to box capacity. The feature **cards stay ref-based** in `roadmap/03-features/`; a `sprints/sprint-NN/` overlay groups the active cards and holds the iteration's planning.
+
+```
+roadmap/03-features/<NNN>-<slug>.md       ← feature card stays here (ref-based, unchanged)
+sprints/sprint-NN/
+├── README.md                             ← the iteration: which feature cards it commits to
+└── planning.md                           (medium+) capacity, goal
+<source tree>/…code…                      ← the Act
+```
+
+**When**: team ≥ 3 contributors **or** capacity is the binding constraint (people split across many features, need time-boxing to focus). Sprints box capacity — an overlay on the roadmap, never a replacement.
 
 > **Rare-audit exception:** a feature README never spawns a `research.md`/`plan.md`/`act.md` by default. Only when it genuinely matters to record *what* the AI evaluated and *how* (audit / sensitive handoff) do you promote that one node to a folder and keep a single `research.md` (the plan folded inside) next to the README. Default = no research file; durable decisions go to an ADR.
 
@@ -594,41 +590,26 @@ The mode is **not tier-bound**: any tier can use any mode. Pick at instantiation
 
 ### Promoting / demoting between modes
 
-The flow is bidirectional: as the project grows or shrinks, the mode follows.
+The flow is bidirectional and **non-destructive** — feature cards never move (they stay ref-based in `roadmap/03-features/`); you only add or remove the **sprint overlay** and the epic concept.
 
 ```
-Mode C (flat)
-   │
-   │  grows: epic concept becomes useful
-   ▼
-Mode B (epic-bound)
-   │
-   │  grows: 3+ contributors, capacity becomes the constraint
-   ▼
-Mode A (sprint-bound)
-   │
-   │  shrinks: team contracts, kanban replaces ceremony
-   ▼
-Mode B (epic-bound)
+Mode C (flat) ──grows: epics become useful──▶ Mode B (epic-bound)
+Mode B ──grows: 3+ contributors, capacity-bound──▶ Mode A (sprint overlay added)
+Mode A ──shrinks: team contracts, kanban replaces ceremony──▶ Mode B (overlay removed)
 ```
 
-The mechanical promotion is **move the feature build folder + update frontmatter** (the FRD spec stays put in `architecture/frds/`):
+- `C → B`: start setting `epic:` on the feature cards (and create epic cards in `roadmap/02-epics/`). Nothing moves.
+- `B → A`: create `sprints/sprint-NN/` and list the active feature cards it commits to; record the mode in `AGENTS.md`.
+- `A → B`: drop the `sprints/` overlay; the cards carry on unchanged.
 
-- `C → B`: `mv features/<feature-slug>/ epics/<epic-id>-<epic-slug>/features/<feature-slug>/`; set the README's `mode: B` (and `epic:` if you track it).
-- `B → A`: create `sprints/sprint-NN/features/<feature-slug>/` and move the feature folder there; set `mode: A`.
-- Reverse moves work the same way; nothing destructive. The `frd:` link never changes.
+The `frd:` / `epic:` refs never change.
 
 ### Tooling
 
 Two Templater snippets cooperate:
 
 - `frd-template.md` authors the FRD **spec** as a flat file at `architecture/frds/frd-<slug>.md`. It is the single artifact — no `research.md`/`plan.md` siblings. Absorbed into the SDD at prototype/small — don't create it there.
-- `feature-template.md` creates the feature **build** README (`frd:` + `mode:` frontmatter; the FRD's Tasks become the README's checklist) and asks for the **feature build dir** at creation time:
-  - `sprints/sprint-NN` → Mode A → `sprints/sprint-NN/features/<feature-slug>/README.md`
-  - an epic path (`epics/002-scheduling`) → Mode B → `epics/002-scheduling/features/<feature-slug>/README.md`
-  - the literal string `flat` → Mode C → `features/<feature-slug>/README.md`
-
-Pick the dir that matches your declared mode. The snippet works the same regardless.
+- `feature-template.md` creates the **feature card** at `roadmap/03-features/<NNN>-<slug>.md` (`epic:` + `frd:` frontmatter; the FRD's Tasks become the card's checklist). The card is ref-based — the same regardless of mode. Under the Mode A overlay you additionally list the card in the active `sprints/sprint-NN/README.md`.
 
 ### Cross-mode invariants (what stays the same)
 
