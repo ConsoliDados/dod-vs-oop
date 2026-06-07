@@ -1,6 +1,6 @@
 # Roadmap dashboard
 
-The production **esteira** — `milestone → epic → feature`, by status. Drag-drop lives in the
+The production **pipeline** — `milestone → epic → feature`, by status. Drag-drop lives in the
 kanban boards (`01-milestones.board.md`, `02-epics.board.md`, `03-features.board.md`); this note
 is the **live overview** (Dataview, reads each card's frontmatter). One pane, all three levels.
 

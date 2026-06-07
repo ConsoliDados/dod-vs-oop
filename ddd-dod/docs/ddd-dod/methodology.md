@@ -69,29 +69,29 @@ When a trigger fires, log it in `open-questions.md` (resolved) or the active epi
 
 ## 2. The lifecycle
 
-Two axes, one-way reference. The **management esteira** (roadmap/board) points *into* the **docs** (`architecture/`); the docs are agnostic and never point back. FRD is the last doc; below it is code.
+Two axes, one-way reference. The **management pipeline** (roadmap/board) points *into* the **docs** (`architecture/`); the docs are agnostic and never point back. FRD is the last doc; below it is code.
 
 ```
-   ESTEIRA DE GESTÃO                      aponta p/         DOCS (architecture/, agnósticos)
+   MANAGEMENT PIPELINE                    points to         DOCS (architecture/, agnostic)
    (roadmap / board)                                        ───────────────────────────────
    ROADMAP
      │
      ▼
-   MILESTONE ───────────── refs ─────────▶  vários SDDs  (1 : N)   "auth", "workflow IA"
-     │   no planejamento: "esse domain tem SDD? não → cria"        cross-cutting entra sem SDD
+   MILESTONE ───────────── refs ─────────▶  several SDDs  (1 : N)   "auth", "AI workflow"
+     │   at planning: "does this domain have an SDD? no → create one"  cross-cutting enters with no SDD
      ▼
-   EPIC ─────────────────── sdd: ────────▶  SDD   (≈1 : 1)   domínio: core | supporting | generic
-     │   (ou SEM sdd, se cross-cutting)                      1 artefato: sdd-<slug>.md (flat)
+   EPIC ─────────────────── sdd: ────────▶  SDD   (≈1 : 1)   domain: core | supporting | generic
+     │   (or NO sdd, if cross-cutting)                       1 artifact: sdd-<slug>.md (flat)
      ▼
-   FEATURE ──────────────── frd: ────────▶  FRD   (1 : 1)    1 funcionalidade
-     │                                                       1 artefato: frd-<slug>.md (flat)
+   FEATURE ──────────────── frd: ────────▶  FRD   (1 : 1)    1 functionality
+     │                                                       1 artifact: frd-<slug>.md (flat)
      ▼
-   TASK  (menor unidade = DIAS, 1–2d)
-     │   checklist interno = HORAS
+   TASK  (smallest unit = DAYS, 1–2d)
+     │   internal checklist = HOURS
      ▼
-   CÓDIGO  ◀──── o "Act" do build ────  (+ README da Feature = trilha viva; sem act.md)
+   CODE  ◀──── the "Act" of the build ────  (+ Feature README = live trail; no act.md)
      │
-     └── decisão durável ──────────────▶  ADR   (única coisa do "research" que persiste)
+     └── durable decision ─────────────▶  ADR   (the only part of "research" that persists)
 ```
 
 The cardinality ruler (playbook §22.1):
@@ -122,7 +122,7 @@ Read in this order. Resist the urge to skim.
 5. **`docs/ddd-dod/architecture/srs.md`** (medium+) — requirements contract.
 6. **`docs/ddd-dod/architecture/adrs/`** — locked-in decisions. Skim titles; read those touching the area you'll work in.
 7. **`docs/ddd-dod/architecture/sdds/`** (when present) — flat files `sdd-<slug>.md`, the tactical design per bounded context (the domain bible an epic references). **`architecture/frds/`** (medium+) — flat files `frd-<slug>.md`, the "what" of each functionality.
-8. **`docs/ddd-dod/roadmap/`** — the production esteira. `00-dashboard/` (kanban boards + Dataview overview) shows what's Active; open the active epic in `02-epics/` (follow its `sdd:` to the domain bible).
+8. **`docs/ddd-dod/roadmap/`** — the production pipeline. `00-dashboard/` (kanban boards + Dataview overview) shows what's Active; open the active epic in `02-epics/` (follow its `sdd:` to the domain bible).
 9. **`docs/ddd-dod/roadmap/03-features/`** — feature cards = current build trails (the code is the Act, in `apps/`/`packages/`). (Scrum/Mode A with `sprints/` is the documented alternative — playbook §23.)
 10. **`docs/ddd-dod/open-questions.md`** — unresolved decisions that may block progress.
 

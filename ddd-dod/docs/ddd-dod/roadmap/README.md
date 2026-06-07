@@ -5,7 +5,7 @@ Source of truth for **commitments** — work that has been decided and will (or 
 ## Layout
 
 ```
-roadmap/   (= the production esteira: committed work, tracked at 3 levels — flat, ref-based)
+roadmap/   (= the production pipeline: committed work, tracked at 3 levels — flat, ref-based)
 ├── 00-dashboard/
 │   ├── 00-dashboard.md          ← Dataview overview (milestone→epic→feature × status), one pane
 │   ├── 01-milestones.board.md   ← kanban: Planned · Active · Shipped
