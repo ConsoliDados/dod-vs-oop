@@ -1,5 +1,4 @@
 ---
-id: FRD-003
 slug: di-container
 sdd: null
 feature: di-container
@@ -7,7 +6,7 @@ epic_ref: EPIC-002 (active-foundation)
 status: done
 ---
 
-# FRD-003 — di-container
+# FRD — di-container
 
 > **Infra feature** (no parent SDD). Hardens the scaffold's DI container into a **Result-native, never-throwing, disposable** container — built to be **reused across projects** (candidate for the shared template). Amends **ADR-0004**.
 

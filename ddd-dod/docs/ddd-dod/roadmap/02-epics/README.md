@@ -35,7 +35,7 @@ Milestone (delivery grouping)   ← ../01-milestones/
     ↓ contains
 Epic (this folder)              milestone: <id>-<slug> · sdd: sdd-<slug>
     ↓ realized by
-Feature (1:1 FRD) → Tasks       ← ../03-features/ ; epic: <id>-<slug> · frd: FRD-<NNN>
+Feature (1:1 FRD) → Tasks       ← ../03-features/ ; epic: <id>-<slug> · frd: <slug>
     ↓ exits_with all checked
 Epic → Done → release (playbook §16.4)
 ```

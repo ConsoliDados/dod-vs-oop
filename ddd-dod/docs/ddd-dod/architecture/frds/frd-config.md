@@ -1,5 +1,4 @@
 ---
-id: FRD-001
 slug: config
 sdd: null
 feature: config
@@ -7,7 +6,7 @@ epic_ref: EPIC-002 (active-foundation)
 status: done
 ---
 
-# FRD-001 — config
+# FRD — config
 
 > **Infra feature** (no parent SDD — EPIC-002 references none). The "what" of process configuration for the runtime foundation.
 

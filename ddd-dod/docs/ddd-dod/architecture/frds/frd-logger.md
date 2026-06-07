@@ -1,5 +1,4 @@
 ---
-id: FRD-002
 slug: logger
 sdd: null
 feature: logger
@@ -7,7 +6,7 @@ epic_ref: EPIC-002 (active-foundation)
 status: done
 ---
 
-# FRD-002 — logger
+# FRD — logger
 
 > **Infra feature** (no parent SDD). Extends the scaffold's functional logger with an **environment-selected transport**: terminal in dev, OTLP (→ observability stack) in production.
 

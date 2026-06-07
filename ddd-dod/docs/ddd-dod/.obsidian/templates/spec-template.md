@@ -4,8 +4,8 @@ const slug = await tp.system.prompt("Slug (kebab-case)");
 const stage = await tp.system.prompt("Stage (backlog | roadmap)");
 const kind = await tp.system.prompt("Kind (feature | refactor | infra | bug)", "feature");
 const epic = await tp.system.prompt("Epic slug (e.g. 002-authentication, blank if none)", "");
-const frd = await tp.system.prompt("FRD id this card realizes (e.g. FRD-001, blank if none)", "");
-const sdd = await tp.system.prompt("SDD id / bounded context (e.g. SDD-001, blank if none)", "");
+const frd = await tp.system.prompt("FRD slug this card realizes (e.g. account-balance, blank if none)", "");
+const sdd = await tp.system.prompt("SDD slug / bounded context (e.g. ledger, blank if none)", "");
 await tp.file.rename(`${id}-${slug}`);
 await tp.file.move(`/${stage}s/${id}-${slug}`);
 -%>

@@ -1,6 +1,6 @@
 ---
 feature: app-bootstrap
-frd: FRD-004
+frd: app-bootstrap
 epic: EPIC-002 (active-foundation)
 branch: feat/app-bootstrap
 status: done

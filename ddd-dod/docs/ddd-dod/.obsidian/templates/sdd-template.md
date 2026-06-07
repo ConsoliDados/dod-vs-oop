@@ -1,5 +1,4 @@
 <%*
-const id = await tp.system.prompt("SDD ID (e.g. 001)");
 const title = await tp.system.prompt("Domain / bounded-context name");
 const subdomainType = await tp.system.prompt("Subdomain type (core | supporting | generic)", "core");
 const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
@@ -8,7 +7,6 @@ await tp.file.move(`/sdds/sdd-${slug}`);
 const date = tp.date.now("YYYY-MM-DD");
 -%>
 ---
-id: SDD-<% id %>
 slug: <% slug %>
 title: <% title %>
 subdomain-type: <% subdomainType %>
@@ -16,13 +14,20 @@ status: draft
 date: <% date %>
 ---
 
-# SDD-<% id %> — <% title %>
+# SDD — <% title %>
 
 <!--
 The SDD is the tactical-design "bible" of ONE coherent DOMAIN (knowledge + architecture).
+**Identity = the slug** (`sdd-<slug>.md`) — there is NO numeric `SDD-NNN` id (slugs are
+merge-safe with many contributors; refs point by slug, e.g. an epic's `sdd: <slug>`).
 It is a management-AGNOSTIC doc: it carries NO `epic:`/`milestone:` field and never points at
 management constructs. An Epic *references* this SDD via its `sdd:` field (Epic : SDD ≈ 1 : 1);
 a cross-cutting refactor/infra epic references none.
+
+LARGE-tier evolution: when a bounded context subdivides, this SDD becomes a FOLDER hosting
+nested sub-SDDs — `sdds/sdd-<context>/{sdd-<context>.md (parent overview) + sdd-<sub>.md …}`,
+all slug-named. FRDs do NOT get their own folder; they stay as the "Functionalities" list
+inside whichever SDD owns them.
 
 `subdomain-type`: core (the differentiating heart) · supporting (specific but not the edge) ·
 generic (off-the-shelf-shaped, e.g. auth).
@@ -83,10 +88,11 @@ This makes the API a vocabulary of domain intentions. One row per route. (playbo
 ## 8. Functionalities (child FRDs — doc→doc links)
 
 <!--
-The functionalities of this domain. At prototype/small the FRD layer lives HERE: one block per
-functionality with its intent · acceptance criteria · validation rules · Tasks. At medium+ each
-block is promoted to its own flat FRD `../frds/frd-<slug>.md` (1:1 with a Feature) and this becomes
-a list of links: [[../frds/frd-<slug>|FRD-NNN]].
+The functionalities of this domain, as a LIST (one block per functionality: intent · acceptance
+criteria · validation rules · Tasks). This is the NORM — FRDs rarely grow enough to leave the SDD.
+OPTIONAL (medium+ §22 trigger): a heavy functionality may be promoted to its own flat FRD
+`../frds/frd-<slug>.md` (1:1 with a Feature), and the block becomes a slug link:
+[[../frds/frd-<slug>|frd-<slug>]]. The FRD has NO numeric id either — identity is its slug.
 -->
 
 ## 9. Open items

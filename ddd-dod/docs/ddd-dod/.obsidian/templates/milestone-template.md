@@ -4,7 +4,7 @@ const title = await tp.system.prompt("Milestone title (e.g. Auth, MVP, v1)");
 const window = await tp.system.prompt("Target window (e.g. 2026-Q3, or a date range)", "");
 const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 await tp.file.rename(`${id}-${slug}`);
-await tp.file.move(`/roadmap/milestones/${id}-${slug}`);
+await tp.file.move(`/roadmap/01-milestones/${id}-${slug}`);
 const date = tp.date.now("YYYY-MM-DD");
 -%>
 ---
@@ -21,8 +21,8 @@ date: <% date %>
 <!--
 A Milestone is a ROADMAP-level delivery grouping — the construct that replaces the dead "phase"
 (playbook §22.1, §25). It is MANAGEMENT, not a doc: it spans 1..N SDDs/epics plus cross-cutting
-work (Milestone : SDD = 1 : N) and REFERENCES the docs it delivers (`sdd:`/epic refs); the docs
-never point back. Lives under `roadmap/milestones/` (or as a section in `roadmap/`).
+work (Milestone : SDD = 1 : N) and REFERENCES the docs it delivers (SDDs by slug, epics by id); the
+docs never point back. Lives under `roadmap/01-milestones/`.
 
 Portability (playbook §25): Jira Initiative · Linear Project.
 -->
@@ -38,7 +38,7 @@ The domains and epics this milestone delivers, by reference. A milestone like "a
 SDDs. Link them; the link is one-way (milestone → docs/epics).
 -->
 
-- [[../../architecture/sdds/sdd-<slug>|SDD-NNN]] — <domain> · via EPIC-<id>
+- [[../../architecture/sdds/sdd-<slug>|sdd-<slug>]] — <domain> · via EPIC-<id>
 - …
 
 ## Cross-cutting items (no SDD)

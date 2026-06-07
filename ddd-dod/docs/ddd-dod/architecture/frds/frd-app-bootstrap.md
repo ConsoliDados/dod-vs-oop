@@ -1,5 +1,4 @@
 ---
-id: FRD-004
 slug: app-bootstrap
 sdd: null
 feature: app-bootstrap
@@ -7,7 +6,7 @@ epic_ref: EPIC-002 (active-foundation)
 status: done
 ---
 
-# FRD-004 — app-bootstrap
+# FRD — app-bootstrap
 
 > **Infra feature** (no parent SDD). The runtime **`bootstrap()`** sequence + **graceful shutdown** — the part NestJS gives for free (`NestFactory` + lifecycle hooks) that we build explicitly. Closes the never-throw loop: capture the `Err`, tear down gracefully. Modeled on **my-approfile `services/auth`** (`bootstrap.ts` + `main.ts`).
 

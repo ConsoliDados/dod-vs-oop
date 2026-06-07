@@ -1,6 +1,6 @@
 ---
 feature: config
-frd: FRD-001
+frd: config
 epic: EPIC-002 (active-foundation)
 branch: feat/config
 status: done

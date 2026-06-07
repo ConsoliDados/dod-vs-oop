@@ -13,7 +13,7 @@ sdd: null
 
 The Elysia boundary — error envelope, request-id + request-scoped logger, health/readiness — built with the named-controller pattern (no `app` passed to controllers).
 
-- **Spec:** [[../../architecture/frds/frd-http-app|FRD-006]].
+- **Spec:** [[../../architecture/frds/frd-http-app|frd-http-app]].
 - **Decisions:** [[../../architecture/adrs/0014-infra-placement-tier-folder-organization|ADR-0014]] (inbound layer).
 - **Code:** `apps/api/src/http/`.
 - **Branch:** `feat/http-app` → merged into the epic.

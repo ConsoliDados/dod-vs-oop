@@ -1,6 +1,6 @@
 ---
 feature: logger
-frd: FRD-002
+frd: logger
 epic: EPIC-002 (active-foundation)
 branch: feat/logger
 status: done

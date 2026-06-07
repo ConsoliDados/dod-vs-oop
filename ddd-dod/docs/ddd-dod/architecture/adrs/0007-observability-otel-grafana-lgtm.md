@@ -51,5 +51,5 @@ For the study/dev backend, use the single all-in-one image **`grafana/otel-lgtm`
 
 - `../sad.md` §5 (logging), §8 (future directions)
 - ADR-0002 / ADR-0005 — Result + the `@consolidados/results` globals (logger error-as-value)
-- FRD-002 (`frd-logger`) — the `OtlpLogSink` seam delivered in FEAT-002
+- `frd-logger` — the `OtlpLogSink` seam delivered in FEAT-002
 - Editorial: business-vault idea `observabilidade-oss-otel-grafana-lgtm` (the public write-up of this rationale)

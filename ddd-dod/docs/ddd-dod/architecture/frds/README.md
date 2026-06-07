@@ -38,6 +38,6 @@ Use the Templater snippet `.obsidian/templates/frd-template.md`. Sections: inten
 
 ## Example index
 
-| ID | Functionality | SDD | Feature | Status |
+| Slug | Functionality | SDD | Feature | Status |
 |----|---------------|-----|---------|--------|
-| FRD-001 | <functionality> | SDD-001 | <feature-slug> | draft |
+| frd-post-entry | <functionality> | sdd-ledger | <feature-slug> | draft |

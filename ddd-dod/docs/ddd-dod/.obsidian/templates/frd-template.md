@@ -1,14 +1,12 @@
 <%*
-const id = await tp.system.prompt("FRD ID (e.g. 001)");
 const title = await tp.system.prompt("Functionality name");
-const sdd = await tp.system.prompt("Parent SDD ID (the domain bible, e.g. SDD-001)");
+const sdd = await tp.system.prompt("Parent SDD slug (the domain bible, e.g. ledger) — blank if none");
 const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 await tp.file.rename(`frd-${slug}`);
 await tp.file.move(`/frds/frd-${slug}`);
 const date = tp.date.now("YYYY-MM-DD");
 -%>
 ---
-id: FRD-<% id %>
 slug: <% slug %>
 title: <% title %>
 sdd: <% sdd %>
@@ -18,13 +16,18 @@ depends-on: []
 blocks: []
 ---
 
-# FRD-<% id %> — <% title %>
+# FRD — <% title %>
 
 <!--
 An FRD (Feature Requirements Document) is the "what" of ONE functionality inside a domain. It is
-1:1 with the management Feature that realizes it. It is the LAST doc in architecture/ and is
-management-AGNOSTIC: it carries NO `epic:`/`milestone:` field. Its only upward link is `sdd:` (the
-parent domain bible) — reference the SDD, never duplicate the model.
+1:1 with the management Feature that realizes it. **Identity = the slug** (`frd-<slug>.md`) — there
+is NO numeric `FRD-NNN` id (slugs are merge-safe with many contributors; the Feature card points
+here via `frd: <slug>`). It is the LAST doc in architecture/ and is management-AGNOSTIC: it carries
+NO `epic:`/`milestone:` field. Its only upward link is `sdd:` (the parent domain bible, by slug) —
+reference the SDD, never duplicate the model.
+
+NOTE: a standalone FRD file is the medium+ OPTION (§22 trigger). By default a functionality is just
+a block in its SDD's "Functionalities" list — FRDs rarely grow enough to need their own file.
 
 DEFAULT = this ONE flat file `architecture/frds/frd-<slug>.md`. RPA (Research → Plan → Act) is a
 MENTAL discipline here — there are NO `research.md`/`plan.md` siblings and NO folder. Durable
@@ -44,7 +47,7 @@ does not exist there).
 
 <!-- Reference (don't copy) the parent SDD: which aggregate(s) / entities / value objects this
 touches, which invariants apply, which ubiquitous-language terms are in play.
-Link: [[../sdds/sdd-<slug>|SDD-NNN]]. -->
+Link: [[../sdds/sdd-<slug>|sdd-<slug>]]. -->
 
 ## 3. Acceptance criteria
 

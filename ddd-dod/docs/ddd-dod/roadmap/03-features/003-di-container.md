@@ -1,6 +1,6 @@
 ---
 feature: di-container
-frd: FRD-003
+frd: di-container
 epic: EPIC-002 (active-foundation)
 branch: feat/di-container
 status: done

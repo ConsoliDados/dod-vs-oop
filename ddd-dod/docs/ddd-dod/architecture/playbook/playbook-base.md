@@ -511,7 +511,7 @@ When a trigger fires, **the artefact moves from optional to required for the res
 There are **two axes** and a **one-way reference** between them:
 
 - **DOCS** live in `architecture/`: `SRS → SAD (+ADRs) → SDD → FRD`. **FRD is the last doc in `architecture/`.** Docs are management-agnostic: they **never** carry `epic:`/`milestone:` fields and never point at management constructs (same spirit as the reverse-boundary rule).
-- **MANAGEMENT** lives in roadmap/board/epics: `Milestone → Epic → Feature → Task`. Management **references docs by id** (`sdd:`, `frd:`); the docs never point back.
+- **MANAGEMENT** lives in roadmap/board/epics: `Milestone → Epic → Feature → Task`. Management keeps numeric ids (Jira/GH-mappable). It **references docs by slug** (`sdd: ledger`, `frd: account-balance`) — **SDDs/FRDs have no numeric id; their identity is the slug** (merge-safe with many contributors, greppable for agents). The docs never point back.
 
 An **Epic references one SDD** via its `sdd:` field — it is *not* the same object as the SDD. The SDD is the agnostic domain bible; the Epic is the management envelope that delivers it.
 
@@ -530,6 +530,9 @@ Consequences:
 - An **SDD is a coherent DOMAIN** (knowledge + architecture), tagged `subdomain-type: core | supporting | generic` (e.g. `auth` is `generic`). It carries no `epic:` field — the doc is agnostic.
 - The trigger above still decides **when a domain context's SDD becomes mandatory** (3+ ADRs, etc.). Before the threshold a small domain epic can carry its tactical notes inline; after it, the SDD is required.
 - Authoring an SDD/FRD does **not** produce `research.md`/`plan.md` siblings — the SDD/FRD flat file *is* the one artifact (see §23 and the methodology's RPA section). Durable decisions surfaced while authoring go to an **ADR**.
+- **Identity is the slug** — `sdds/sdd-<slug>.md`, `frds/frd-<slug>.md`; there is **no** `SDD-NNN`/`FRD-NNN` number. Refs point by slug. A sequential counter is the thing parallel contributors collide on (two devs grab the same "next" number in a PR); slug identity removes that coordination point. The management layer (cards) keeps its numbers because a central tool (Jira/GH) hands those out.
+- **FRDs are a list inside the SDD by default** (§8 "Functionalities"); splitting one into its own `frd-<slug>.md` is the medium+ §22 option, not the norm — FRDs rarely grow enough to leave the SDD.
+- **Large-tier evolution — SDD as a folder of sub-SDDs.** When a bounded context **subdivides**, its SDD becomes a **folder** hosting nested sub-SDDs: `sdds/sdd-<context>/{sdd-<context>.md (parent overview) + sdd-<sub>.md …}`, all slug-named (still merge-safe). One SDD can thus contain several SDDs. FRDs do **not** get their own folder — they remain "Functionalities" lists inside whichever SDD owns them.
 
 ## 23. Feature placement modes
 
@@ -541,7 +544,7 @@ No sprint. Feature cards flow through the **active epic** (via `epic:` frontmatt
 
 ```
 roadmap/02-epics/<NNN>-<slug>.md          ← the epic card (sdd: ref)
-roadmap/03-features/<NNN>-<slug>.md       ← feature card: epic: <…>, frd: FRD-<NNN> (live trail)
+roadmap/03-features/<NNN>-<slug>.md       ← feature card: epic: <…>, frd: <slug> (live trail)
 <source tree>/…code…                      ← the Act
 ```
 
@@ -552,7 +555,7 @@ roadmap/03-features/<NNN>-<slug>.md       ← feature card: epic: <…>, frd: FR
 No sprint; epics optional. Feature cards flow continuously; the FRD/SDD layering is absorbed upstream (`srs+sad.md`).
 
 ```
-roadmap/03-features/<NNN>-<slug>.md       ← feature card: frd: FRD-<NNN> (and epic: when one exists)
+roadmap/03-features/<NNN>-<slug>.md       ← feature card: frd: <slug> (and epic: when one exists)
 <source tree>/…code…                      ← the Act
 ```
 

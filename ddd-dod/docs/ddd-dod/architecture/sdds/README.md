@@ -46,6 +46,6 @@ Use the Templater snippet `.obsidian/templates/sdd-template.md`. Sections:
 
 ## Example index
 
-| ID | Domain | subdomain-type | FRDs | Status |
+| Slug | Domain | subdomain-type | FRDs | Status |
 |----|--------|----------------|------|--------|
-| SDD-001 | <bounded context> | core | FRD-001, FRD-002 | draft |
+| sdd-billing | <bounded context> | core | frd-post-entry, frd-statement | draft |

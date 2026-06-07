@@ -4,7 +4,7 @@ const slug = await tp.system.prompt("Epic slug (kebab-case)");
 const type = await tp.system.prompt("Type (capability | refactor | infra)");
 const owner = await tp.system.prompt("Owner (person / team)");
 await tp.file.rename(`${id}-${slug}`);
-await tp.file.move(`/epics/${id}-${slug}`);
+await tp.file.move(`/roadmap/02-epics/${id}-${slug}`);
 const date = tp.date.now("YYYY-MM-DD");
 -%>
 ---
@@ -34,7 +34,7 @@ see `milestone-template.md`. A Milestone spans 1..N epics/SDDs, 1 : N.)
 
 Epic *references* an SDD — it does not equal one (playbook §22.1; Epic : SDD ≈ 1 : 1).
 A DOMAIN epic (`capability`) references exactly one bounded context — set `sdd:` to its
-SDD ID (e.g. SDD-001); the SDD is the agnostic domain bible. A CROSS-CUTTING epic
+SDD slug (e.g. `ledger`); the SDD is the agnostic domain bible. A CROSS-CUTTING epic
 (`refactor`, `infra`) references no bounded context — leave `sdd:` blank. The reference is
 one-way: the epic points at the SDD; the SDD never points back.
 -->
@@ -58,7 +58,7 @@ one-way: the epic points at the SDD; the SDD never points back.
 ## Exits with
 
 <!--
-Critério formal de "done" deste epic. Quando todos checados → status: done →
+Formal "done" criteria for this epic. When all are checked → status: done →
 release candidate (see playbook-base.md §16.4). Each item should be testable
 or observable.
 -->
@@ -71,7 +71,7 @@ or observable.
 <!-- ADRs and SDDs created or significantly touched during this epic. Update as work progresses. -->
 
 - ADR-NNNN — <title>
-- SDD-NNN — <area>
+- sdd-<slug> — <area>
 
 ## Risks / open questions
 

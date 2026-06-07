@@ -1,5 +1,4 @@
 ---
-id: FRD-006
 slug: http-app
 sdd: null
 feature: http-app
@@ -7,7 +6,7 @@ epic_ref: EPIC-002 (active-foundation)
 status: done
 ---
 
-# FRD-006 — http-app
+# FRD — http-app
 
 > **Infra feature** (no parent SDD). The Elysia HTTP app: a consistent **error envelope**, **request-id + request-scoped logger** middleware, and **health/readiness** endpoints — the part a batteries-included framework hides, built explicitly. Composed with the **named-controller pattern** validated against **my-approfile `services/auth`** (ADR-0014 inbound layer): one `new Elysia({ name })` per controller, mounted via `.use()`, **no `app` passed into a controller**.
 
@@ -64,7 +63,7 @@ createApp(deps: HttpDeps)              // new Elysia().use(errorEnvelope(log)).u
 - Domain context routes (ledger/accounts/statements/reconciliation controllers) → **EPIC-003** (mount the same way, `.use(setup)`).
 - Auth/`hasAuth` macro — out of study scope (SRS §2.2); the pattern supports it (proven in the spike), but no auth routes here.
 - `@elysiajs/openapi`, `cors` — trivial root `.use()` when needed; not part of the boundary contract.
-- Connection draining on shutdown — Elysia/Bun stop is enough at study scale (FRD-004 §6).
+- Connection draining on shutdown — Elysia/Bun stop is enough at study scale (frd-app-bootstrap §6).
 
 ## 7. Open questions
 
