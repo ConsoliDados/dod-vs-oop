@@ -236,7 +236,7 @@ git push origin main --tags
 Quick reference for routine actions. None of these need a meeting.
 
 ### 6.1 New idea
-Templater → `spec-template.md` → stage `backlog` → fill `why`, `outcome`, `dependencies`, `cost`. Kanban: **Initial**.
+Templater → `spec-template.md` → fill `why`, `outcome`, `dependencies`, `cost`. Lands in `backlogs/`; Kanban: **Initial**. (Roadmap cards use the dedicated milestone/epic/feature snippets — §6.2.)
 
 ### 6.2 Promote backlog → roadmap
 Move file from `backlogs/<id>-<slug>.md` → `roadmap/<id>-<slug>.md` (rename ID prefix `BACKLOG-NNN` → `ROADMAP-NNN`). Update kanban entries. Set `epic:` field.

@@ -1,39 +1,28 @@
 <%*
-const id = await tp.system.prompt("Card ID (e.g. 001)");
+const id = await tp.system.prompt("Backlog ID (e.g. 001)");
 const slug = await tp.system.prompt("Slug (kebab-case)");
-const stage = await tp.system.prompt("Stage (backlog | roadmap)");
 const kind = await tp.system.prompt("Kind (feature | refactor | infra | bug)", "feature");
-const epic = await tp.system.prompt("Epic slug (e.g. 002-authentication, blank if none)", "");
-const frd = await tp.system.prompt("FRD slug this card realizes (e.g. account-balance, blank if none)", "");
-const sdd = await tp.system.prompt("SDD slug / bounded context (e.g. ledger, blank if none)", "");
 await tp.file.rename(`${id}-${slug}`);
-await tp.file.move(`/${stage}s/${id}-${slug}`);
+await tp.file.move(`/backlogs/${id}-${slug}`);
 -%>
 ---
-id: <% stage.toUpperCase() %>-<% id %>
+id: BACKLOG-<% id %>
 slug: <% slug %>
-stage: <% stage %>
 kind: <% kind %>
 status: initial
-epic: <% epic %>
-frd: <% frd %>
-sdd: <% sdd %>
 ---
 
-# <% stage.toUpperCase() %>-<% id %> — <% slug.replace(/-/g, " ") %>
+# BACKLOG-<% id %> — <% slug.replace(/-/g, " ") %>
 
 <!--
-Kind semantics:
-- feature  — delivers new user-visible value.
-- refactor — internal quality improvement, no behavior change.
-- infra    — CI/CD, observability, dev tooling.
-- bug      — defect fix. May fast-track through `refining` if impact is declared.
+A BACKLOG card is an IDEA not yet committed (distinct from the roadmap, which is committed work — the
+production pipeline). Kind: feature (new user-visible value) · refactor (internal quality, no behavior
+change) · infra (CI/CD, observability, tooling) · bug (defect fix).
 
-This card is MANAGEMENT; the link fields are one-way refs INTO the agnostic docs (the docs
-never point back — playbook §22.1). The `epic:` field is optional; fill it when this card
-belongs to a known epic (see `../epics/`). Leave blank for standalone work. `frd:` / `sdd:`
-are also optional — fill them when the card realizes a specific FRD (1:1 with a Feature) /
-domain (medium+), so the board links back to the spec it delivers. Leave blank otherwise.
+When the work is DECIDED, PROMOTE it to the roadmap (§6.2): create the matching card with the dedicated
+Templater snippet for its level — `milestone-template` / `epic-template` / `feature-template`. The
+feature card lands ref-based at `roadmap/03-features/<NNN>-<slug>.md` and carries the one-way
+`epic:` / `frd:` refs (FRD/SDD by slug). The board/Jira hands out the management number.
 -->
 
 ## Why
@@ -55,4 +44,4 @@ durable decisions become ADRs. No research.md by default. -->
 
 ## Estimated cost
 
-<!-- T-shirt size: XS / S / M / L / XL — or hours, or sprints. -->
+<!-- T-shirt size: XS / S / M / L / XL — or hours. -->
