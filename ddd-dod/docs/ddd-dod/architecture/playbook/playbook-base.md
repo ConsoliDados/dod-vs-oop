@@ -95,7 +95,23 @@ Inside one context, files are small modules with focused responsibility. A typic
 - A file per **use case** (one function per file in DDD-shaped contexts; less strict in lighter projects).
 - Adapters in their own subfolder (`infra/`, `adapters/`, `repositories/`).
 
-In small / prototype tiers, this collapses into a flat module without the formal `domain/application/infrastructure` split. Promote the structure when the context grows past ~5 files.
+**"Infra" is three kinds**, with different shareability and therefore different homes (ADR-0014 in the reference project) — naming them makes placement fall out:
+
+| Kind | What | Shareable across HTTP frameworks? | Home |
+|------|------|:--:|------|
+| **Outbound / driven** | persistence adapters (sqlite/pg) — *implement* a port | **yes** | a dedicated infra package |
+| **Inbound / driving** | HTTP routes/controllers — *call* use-cases | **no** (Elysia ≠ Fastify) | the delivery app |
+| **Technical ports** | logger, clock, DB connection, http-kernel — zero-domain | n/a (ports) | a `platform/` package |
+
+**Placement scales by tier:**
+
+- **prototype / small** — infra lives *inside* the context (`src/{domain,application,infra}/`); routes in the app. The core package *does* carry the ORM dep here.
+- **medium+** — the core package goes **infra-free**: outbound adapters move to one `infra/` package (subpath per context), inbound routes live in the delivery app, technical ports in `platform/`. The dependency rule (core ⊅ infra) is now enforced by the **package boundary**, not just lint.
+- **large** — as medium, plus multiple delivery apps; the outbound infra package stays **shared** (adapters never duplicate per app — only routes are per-app).
+
+Promotion is **two-dimensional**: the file-count trigger below (when a context earns the `domain/application/` split) is orthogonal to the **tier** trigger (when infra *leaves* the context package). Keep both.
+
+In small / prototype tiers, the context collapses into a flat module without the formal `domain/application/infrastructure` split. Promote the structure when the context grows past ~5 files.
 
 ## 6. Use cases as free functions
 
@@ -242,6 +258,7 @@ Bundle both with the error (in TS, a `defineError`-style helper that *requires* 
   - `info` — high-level milestone visible to a normal user with `--verbose`
   - `debug` — per-step detail for the maintainer
   - `trace` — verbose, off by default
+- **Logger shape is language-specific** — for the functional-logger-over-a-sink-port recipe (factory, immutable `.child()`, env-selected sink, OTLP-as-a-sink seam), see `playbook-ts` §13.
 
 ## 15. Testing
 
@@ -273,11 +290,10 @@ Multi-line commit messages preferred when the change has any subtlety. The body 
 - `main` is release-tagged, deployable, and always builds. After bootstrap it receives `dev` per release (or a `hotfix/<slug>` in emergencies).
 - `dev` is the integration target.
 - **Branch naming:** `feat/<NNN>-<slug>`, `epic/<NNN>-<slug>`, `release/<NNN>-<slug>` — `<NNN>` is the roadmap card number, 3 digits (FEAT-006 → `feat/006-…`, EPIC-002 → `epic/002-…`); `<slug>` is unscoped (no project prefix). The namespace **is** the type, so `git branch --list 'epic/*'` works.
-- **The flow scales by tier (§21):**
-  - **prototype / small** — `feat/<NNN>-<slug>` off `dev` → **PR to `dev`**. No epic branch.
-  - **medium** — features merge **locally** into an `epic/<NNN>-<slug>` branch (the cohesive batch); the **epic is the PR unit to `dev`** (one `dev` PR per epic).
-  - **large** — epics PR into a `release/<NNN>-<slug>` branch (stabilise a milestone off `dev`); `release → dev → main`.
-- **`milestone` is a planning grouping + a release marker (tag/label), never a branch** — except the large-tier `release/<NNN>` stabilisation branch. A release (`dev → main`) ships a milestone's epics (§16.4).
+- **The flow scales by tier (§21).** **Every tier** merges features **locally** into an `epic/<NNN>-<slug>` branch (the cohesive batch, no per-feature push-gate); the **epic is the PR unit**. Tiers differ only in **where the epic PRs and how a release ships**:
+  - **prototype / small** — `feat/<NNN>` → `epic/<NNN>` (local merge) → **epic PRs to `dev`**. A release is just the `dev → main` tag — **no `release/` branch**.
+  - **medium / large** — `feat/<NNN>` → `epic/<NNN>` (local merge) → **epic PRs to a `release/<NNN>-<slug>` branch** (stabilise the milestone off `dev`); then `release → dev → main`.
+- **`milestone` is a planning grouping + a release marker (tag/label), never a branch** — except the **medium+** `release/<NNN>` stabilisation branch that carries a milestone's epics to `main` (§16.4). A release ships a milestone's epics.
 - **CI/CD split (important):** *what gates run* triggers off **refs** (PR→`dev`, push→`main`, `release/*`) — these are **your** refs, so you are **not** bound to gitflow's `feature/`/`release/`/`hotfix/` names. *Release semantics* (version bump + changelog) are computed from **Conventional Commits** (§16.1), not branch names — so keep meaningful `feat:`/`fix:` commits readable on `dev`/`main` (preserve them on merge, or use a Conventional squash title) and enforce them with a `commitlint` gate.
 
 For the bootstrap-time setup of these branches and their hooks/CI, see §17.
@@ -286,7 +302,7 @@ For the bootstrap-time setup of these branches and their hooks/CI, see §17.
 
 Once the bootstrap window closes (§17.2), every feature follows this loop. **The agent does not skip steps; the human gates the PR.**
 
-> **PR unit by tier (§16.2).** At prototype/small the loop targets `dev` with a `feat/<NNN>-<slug>` branch. At **medium+** the PR unit is the **`epic/<NNN>-<slug>`** branch — features merge **locally** into the epic (no push-gate), and the loop below runs once at the **epic → `dev`** boundary (read the epic branch for the branch name in the steps).
+> **PR unit by tier (§16.2).** Every tier merges features **locally** into the **`epic/<NNN>-<slug>`** branch (no per-feature push-gate); the **epic is the PR unit**, and the loop below runs once at the **epic → target** boundary. The target is `dev` at prototype/small, or the milestone's **`release/<NNN>`** branch at medium+ (read the epic branch + its target for the names in the steps).
 
 1. Sync and branch: `git checkout dev && git pull && git checkout -b feat/<name>`.
 2. Implement, commit (Conventional Commits per §16.1). Multiple small commits are fine — they will squash on merge.
@@ -301,7 +317,7 @@ The push-before-PR step is intentional: it gives the human a real branch to insp
 
 ### 16.4 Release on epic / milestone close
 
-Releases (`dev → main` merges with a tag) are **triggered by closure**, not by sprint boundaries or a calendar: at prototype/small, by **epic** closure; at **medium+**, by **milestone** closure (all its epics merged to `dev`). The milestone is the release grouping (§16.2).
+Releases are **triggered by closure**, not by sprint boundaries or a calendar: at prototype/small, by **epic** closure (a direct `dev → main` tag); at **medium+**, by **milestone** closure — its epics land on the milestone's **`release/<NNN>`** branch (§16.2), which then flows `release → dev → main`. The milestone is the release grouping. (At medium+, substitute the `release/<NNN>` branch for `dev` as the merge **source** in the steps below — `release → main`, then fast-forward `dev`.)
 
 When an epic moves to `status: done` (all `exits_with` items checked — see `../epics/`):
 
@@ -444,6 +460,7 @@ Some rules apply universally; some only to certain tiers. Quick reference:
 |---------|:-:|:-:|:-:|:-:|
 | 4 (size table) | ✓ | ✓ | ✓ | ✓ |
 | 5.1 (bounded context = crate) | — | optional | ✓ | ✓ |
+| 5.2 (infra placement: outbound pkg / inbound app / `platform/` ports) | in-context | in-context | ✓ infra-free core | ✓ + shared across apps |
 | 6 (use cases as functions) | ✓ | ✓ | ✓ | ✓ |
 | 7 (repository per aggregate) | optional | ✓ | ✓ | ✓ |
 | 8 (domain events) | — | optional | ✓ | ✓ |
@@ -515,6 +532,10 @@ Consequences:
 - Authoring an SDD/FRD does **not** produce `research.md`/`plan.md` siblings — the SDD/FRD flat file *is* the one artifact (see §23 and the methodology's RPA section). Durable decisions surfaced while authoring go to an **ADR**.
 
 ## 23. Feature placement modes
+
+> **The production esteira is the roadmap (default); a sprint is an optional addendum.** Committed work lives in `roadmap/{01-milestones,02-epics,03-features}` as **reference-based cards** (containment by `milestone:`/`epic:`/`frd:` frontmatter — see `roadmap/README.md`), and *that* is the default production track because it's what stakeholders, PO, and product understand. A team **may additionally** impose a **sprint as a timebox** (Scrum/kanban) over the esteira — that's **Mode A** below — but the sprint is an *overlay*, never a replacement, and the `sprints/` folder does **not** ship by default. **Default = no sprint** (Mode B epic-bound, or Mode C flat). The feature's **card / live-trail is always the ref-based `roadmap/03-features/<NNN>-<slug>.md`**; the folder examples in the modes below show only where the **code** (the Act) sits in the source tree — treat their `README.md` as that card (linked), not a second trail.
+>
+> *(Follow-up: the Mode A/B/C bodies below still describe the pre-consolidation folder-nested layout; they read correctly as "where the code lives" but want a rewrite to fully match the ref-based roadmap.)*
 
 Where work physically lives is orthogonal to the tier. **The unit that gets placed is the Feature** — one Feature = one FRD (1:1) = one build folder holding a `README.md` (the live trail) **and the code (the Act)**. There is **no `frds/` folder in the build** and **no `act.md`**: the FRD *spec* lives in `architecture/frds/frd-<slug>.md`; the build is keyed by the feature slug. The 1–2 day units inside a Feature are its **Tasks** (a `- [ ]` checklist in the README, sourced from the FRD's Tasks section). Three modes:
 

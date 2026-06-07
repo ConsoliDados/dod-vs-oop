@@ -125,8 +125,18 @@ export function publish(cv: Cv): Result<Cv, CvError> {
 
 - **No `throw` in domain code.** Use `Result<T, E>`. Throws are a side channel; types lose them.
 - **Boundaries (HTTP, DB, file I/O) catch native errors and convert to `Err`** with a typed shape.
-- **Never `.unwrap()` / `.unwrapErr()` in production code.** Narrow with `result.ok` or pattern-match. `unwrap*` is allowed only in tests as a fail-fast assertion (per `@consolidados/results` convention).
+- **Never `.unwrap()` / `.unwrapErr()` in production code.** Narrow with `match` or `.isErr()` — **never** a `result.ok` field (the lib exposes no such field). `unwrap*` is allowed only in tests as a fail-fast assertion (per `@consolidados/results` convention).
 - **Errors carry the offending value and the expected shape** (per base playbook §10.3). Object-shaped errors (`{ kind: '...', value: ..., expected: ... }`) read better than `Error` subclasses.
+
+### `match` — three forms, one rule
+
+`match` discriminates three things; learn the shapes:
+
+- **A `Result`** — `match(result, { Ok, Err })`. The branch that *ends* a use-case.
+- **A non-`Result` tagged union** — `match(value, cases, 'kind')`, naming the discriminant key.
+- **A `defineError` operational error** (§5) — `match(e, { Variant, … })`, **no** tag arg (the variant key *is* the tag).
+
+**One `match` per use-case flow.** A use-case body computes its `Result` and ends in a single `match(result, { Ok, Err })` — do **not** sprinkle `if (result.isErr())` through it. `.isErr()` / `.value()` are for the **imperative boundary** only (the bootstrap runner, an infra adapter converting a caught error), never the functional core.
 
 ### Test fail-fast
 
@@ -264,6 +274,26 @@ if (!parsed.success) return Err(ValidationError.invalid(toIssues(parsed.error)))
 ```
 
 `.strict()` rejects unknown fields — equivalent to Rust's `#[serde(deny_unknown_fields)]`. Critical for security-relevant config. **Do not** store `parsed.error.issues` (a `z.ZodIssue[]`) in the error type — that couples every consumer to the validator library; map to the neutral `ValidationIssue` at the single seam shown above.
+
+### Env config — load as a frozen `Result`
+
+Env is an untrusted boundary too, but with one inversion: `process.env` legitimately carries hundreds of unrelated keys, so the env schema is **non-`.strict()`** (Zod's default — strip unknowns), the opposite of request bodies (`.strict()` — reject unknowns). `loadConfig` returns a `Result` (never throws) and **freezes** the parsed config — immutable at runtime, not just in the type:
+
+```ts
+const ConfigSchema = z.object({
+  NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
+  PORT: z.coerce.number().int().positive().max(65535).default(3333), // never 3000 (frontend-reserved)
+  // …
+}) // NOT .strict() — env carries unrelated keys; strip them
+
+export function loadConfig(env = process.env): Result<AppConfig, ConfigError> {
+  const parsed = ConfigSchema.safeParse(env)
+  if (!parsed.success) return Err(ConfigError.invalidEnv(toIssues(parsed.error))) // neutral issues (§5)
+  return Ok(Object.freeze({ /* resolved, surfaced keys only — input-only parts (DB_*) not re-exported */ }))
+}
+```
+
+`ConfigError` is a `defineError` (§5) carrying the neutral `ValidationIssue[]`; `ConfigError.format(e)` is the legible boot failure the composition root (§14) logs before exiting non-zero. **Grow pattern:** flat is fine while small; when config sprouts many keys, nest by group (`auth`, `smtp`, …) with `Option<…>` for optional groups.
 
 ## 7. Aggregate root with rich documentation (DDD)
 
@@ -420,3 +450,133 @@ apps/web/src/features/<feature>/
 8. **Don't reach into `<package>/src/...`** from another package. Only the public `index.ts` exports are stable.
 9. **Don't mix Bun and Node assumptions.** Pick one runtime per service and document it.
 10. **Don't write tests that depend on time / network without mocking.** Time-travel via `vi.useFakeTimers()` or equivalent; mock fetches.
+
+## 12. Branded (newtype) IDs
+
+Base playbook §13 mandates newtypes for IDs. In TS, brand a primitive with a **private `unique symbol`** (never exported) so the brand can't be forged outside its module, and pair the type with a same-named factory object:
+
+```ts
+declare const brand: unique symbol // never exported
+type Brand<T, B extends string> = T & { readonly [brand]: B }
+
+export type AccountId = Brand<string, 'AccountId'>
+export const AccountId = {
+  generate: (): AccountId => Bun.randomUUIDv7() as AccountId, // time-sortable
+  fromString: (v: string): AccountId => v as AccountId,
+}
+```
+
+`x as AccountId` still compiles, but with the symbol unexported no *other* module can mint one without going through `generate` / `fromString` — the cast reads as the deliberate, greppable seam it is. The type and the value share a name so call sites read naturally (`AccountId.generate()`).
+
+> **Note — §13–16 document reference code slated to become packages.** The logger (§13), DI container (§15), and worker-pool (§16) below describe the in-repo `platform/` implementations of the reference project; the composition-root bootstrap (§14) wires them. These three are earmarked to graduate into reusable `@consolidados/*` packages (`@consolidados/logger`, `@consolidados/di`, `@consolidados/worker-pool`). **When they do, update these recipes to *consume the packages*** — import paths and any API shape that changes — rather than showing the in-repo code. Until then, treat the shapes here as proven, not final.
+
+## 13. Logging — a functional logger over a sink port
+
+Base §14 mandates structured logs. The shape: a `createLogger` **factory** (no class) returning an `AppLogger`; `.child(bindings)` derives a correlated logger by **closing over a fresh state object** (not mutating shared state), so per-request loggers can't leak correlation into each other.
+
+```ts
+export interface AppLogger {
+  debug(msg: string, fields?: LogFields): void
+  info(msg: string, fields?: LogFields): void
+  warn(msg: string, fields?: LogFields): void
+  error(msg: string, err?: unknown, fields?: LogFields): void
+  child(bindings: LogBindings): AppLogger // per-request correlation seam
+}
+export function createLogger(config: {
+  level: LogLevel; sink: LogSink; context?: string; redactKeys?: readonly string[]
+}): AppLogger
+```
+
+**The sink is a port** — the logger never knows where logs go; it hands each finished `LogRecord` to a `LogSink`:
+
+```ts
+export interface LogSink {
+  emit(record: LogRecord): void // MUST NOT throw — losing a line must never break the request
+  flush(): Promise<void>        // drain before shutdown
+  dispose(): Promise<void>      // release timers/sockets; idempotent
+}
+```
+
+**Pick the sink by environment** at the composition root — keep the env→transport decision in one selector, not littered through the app:
+
+```ts
+export function selectSink({ nodeEnv, otelEmitter }: SelectSinkOptions): LogSink {
+  if (nodeEnv === 'production' && otelEmitter) return createOtlpLogSink(otelEmitter) // → observability stack
+  return createConsoleSink({ format: nodeEnv === 'development' ? 'pretty' : 'json' })
+}
+```
+
+**Invariants:** no logger method throws (a sink failure is caught and last-resort `console.error`'d); thrown values are normalized to a `SerializedError` (name/message/stack + a depth-bounded `cause` chain); sensitive keys are redacted against a non-negotiable default set. The **OTLP seam is just a sink**, so the OTel SDK never enters the logger package — only an `OtelLogEmitter` the composition root injects.
+
+## 14. Composition root — `bootstrap` + graceful shutdown
+
+The classic stack hides this in a framework factory (`NestFactory` + lifecycle hooks). By hand it's ~40 explicit, testable lines, and stays **error-as-value**: `bootstrap` loads config → wires the container → resolves the core deps → builds the app, returning a `Result` (never throws):
+
+```ts
+export function bootstrap(env = process.env): Result<Bootstrapped, BootstrapError> {
+  const cfg = config.load(env)
+  if (cfg.isErr()) return Err(BootstrapError.config(cfg.value()))
+  const container = buildContainer(cfg.value())
+  const logger = container.peek(Tokens.Logger) // eagerly registered → sync peek keeps bootstrap sync
+  if (logger.isErr()) return Err(BootstrapError.wiring(logger.value()))
+  const app = createApp({ config: cfg.value(), logger: logger.value() /* … */ })
+  return Ok({ app, port: cfg.value().PORT, logger: logger.value(), dispose: () => container.dispose() })
+}
+```
+
+`main.ts` is the **only** place runner-style `.isErr()` branching lives — it `match`es the result, listens, and installs signal handlers that tear down in order:
+
+```ts
+match(bootstrap(), {
+  Ok: ({ app, port, logger, dispose }) => {
+    app.listen(port, () => logger.info('api listening', { port }))
+    const shutdown = async (signal: string) => {
+      logger.info('shutting down', { signal }); await dispose(); process.exit(0)
+    }
+    process.on('SIGTERM', () => void shutdown('SIGTERM'))
+    process.on('SIGINT', () => void shutdown('SIGINT'))
+  },
+  Err: (e) => { console.error(formatBootstrapError(e)); process.exit(1) },
+})
+```
+
+Teardown flows through `container.dispose()` (reverse-order disposers — §15), so there's no manual ordering. Keep `bootstrap` **sync** when no resource needs async init (e.g. sqlite `:memory:`); a lazily-factoried async dep becomes `await container.resolve(...)` and `bootstrap` returns `Promise<Result<…>>`.
+
+## 15. DI container — functional, Result-native (composition root only)
+
+Base §3 sanctions a *functional, Result-native* container **at the composition root** — use cases stay container-agnostic (they receive deps, never the container). The shape that proved out (extraction candidate `@consolidados/di`):
+
+- **Token-based**, instance-per-`createContainer()` over closures — no class, no static singleton.
+- **`resolve` never throws** → `Promise<Result<T, DiError>>`. A **"magic" `register`**: the factory may return `T` **or** `Promise<T>`; `resolve` awaits it, so one path serves sync and async providers (cost: one microtask per resolve — negligible off the hot path).
+- **`peek`** — synchronous read of an already-built singleton (zero microtask) for the rare hot path; `Err(NotResolved)` if registered-but-unbuilt.
+- **Single-flight** — concurrent resolves of one singleton share one in-flight build; a rejected build clears the entry so a later resolve can retry.
+- **Async-safe cycle detection** via an **ancestor chain threaded into the factory's injected container**, *not* a shared mutable `resolving` set (a set is atomic only while sync — under async it deadlocks real cycles and false-flags concurrent ones). A cycle returns `Err(CircularDependency)`.
+- **Lifetimes** `singleton | scoped | transient`. **Track only `singleton`/`scoped` disposables** — a transient is caller-owned (tracking transients leaks an ever-growing teardown list).
+- **Scopes** (`createScope()`) share root registrations + singletons, own their `scoped` cache + teardowns; `scope.dispose()` is isolated.
+- **`dispose()`** runs tracked `Disposable`s + `onDispose` callbacks in **reverse order**, swallowing + logging per-item failures (never throws).
+
+```ts
+const c = createContainer()
+c.register(Tokens.Db, async () => connect(cfg.DATABASE_URL)) // factory may be async
+c.registerValue(Tokens.Logger, createLogger({ /* … */ }))    // pre-built singleton
+const db = await c.resolve(Tokens.Db) // Result<Db, DiError>
+await c.dispose()                      // reverse-order teardown
+```
+
+**Worker boundary:** workers are share-nothing (separate heap per thread), so the container is **never shared across threads** — each worker bootstraps its own. The container must not import `Worker`/`postMessage`; the worker-pool is a separate layer (§16).
+
+## 16. Worker pool — share-nothing, with a pluggable dispatch strategy
+
+A CPU-bound offload layer kept **separate from the DI container** (the container never knows about `Worker`/`postMessage`). `createWorkerPool` owns the threads + reply correlation; `serveWorker(handler)` is the worker-side entry. Because the domain is **plain data**, what crosses the boundary is structured-cloned (or `ArrayBuffer`s transferred zero-copy) — no entity rehydration.
+
+**Scheduling is a pluggable strategy** — keep policy out of the pool (it's a measurable comparison axis):
+
+```ts
+export interface DispatchStrategy {
+  bind(ctx: DispatchContext): void // ctx.send(index, payload) → Promise<Result<…>>; never touches Worker directly
+  submit(task: PendingTask): void  // pick the worker + the timing
+  drain(): void                    // on dispose, settle still-queued tasks as Err(PoolDisposed)
+}
+```
+
+Shipped: **`fifoBackpressure()`** (default — at most one in-flight job per worker, surplus FIFO-queued; correct for CPU-bound jobs that each saturate a thread) and **`roundRobin()`** (the naive unbounded baseline). New policies (e.g. `leastLoaded`) implement the interface without touching the pool.

@@ -18,7 +18,7 @@ This project follows the conventions in `docs/ddd-dod/architecture/playbook/` �
 
 **Two axes, one-way reference (management → docs).** DOCS in `architecture/`: `SRS → SAD (+ADRs) → SDD → FRD` (FRD is the last doc; docs are management-agnostic). MANAGEMENT in roadmap/board/epics: `Milestone → Epic → Feature → Task`, referencing docs by id (`sdd:`, `frd:`).
 
-- **Tier**: medium — see playbook §21 (layered application).
+- **Tier**: small (branching flow: `feat→epic` local, `epic→dev` PR, **no `release/`**). The package structure deliberately **exceeds** small's minimums — it adopts the medium+ infra-free split (ADR-0014/§5.2), bounded contexts (§5.1), and the outbox (§9) because the study needs a provably infra-free functional core. **Tier sets the floor, not the ceiling** — see playbook §21.
 - **Feature placement mode**: B — epic-bound — see playbook §23. 1 contributor (kanban-flow).
 - **Sprint planning**: collapsed into the active epic's README (Mode B).
 - **Documentation language**: English (default). Code is always English.
@@ -96,9 +96,9 @@ Conventional Commits per playbook §16.1. Scopes for this repo:
 
 `platform`, `shared-kernel`, `ledger`, `accounts`, `statements`, `reconciliation`, `api`, `(meta)`, `(docs)`, `(ci)`.
 
-### Branching — medium-tier flow (playbook §16.2)
+### Branching — small tier (playbook §16.2)
 
-`ddd-dod` is a sub-project of the public `dod-vs-oop` repo (shared git; CI is per-example at the repo root). It runs the **medium** tier of playbook §16.2 — **no `milestone` branch**; a milestone is a planning grouping + the release marker.
+`ddd-dod` is a sub-project of the public `dod-vs-oop` repo (shared git; CI is per-example at the repo root). It runs the **small** tier of playbook §16.2: every feature merges **locally** into its epic, the **epic is the PR unit to `dev`**, and there is **no `release/` branch** — `milestone` is a planning grouping + the release marker (`dev → main` tag), never a branch. (Reclassified medium → small on 2026-06-06: medium would add a `release/<NNN>` stabilisation branch we don't need here.)
 
 ```
 dev

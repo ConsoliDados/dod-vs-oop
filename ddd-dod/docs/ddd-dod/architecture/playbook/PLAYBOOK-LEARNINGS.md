@@ -99,12 +99,19 @@ the convention is project-agnostic, so it went straight into the template **and*
 ### What changed
 - **`milestone` is not a branch** (≤ medium). It is a planning grouping + the release marker (the
   `dev → main` tag). The old `milestone → epic → feature` nesting (a ddd-dod extension) collapses:
-  **`epic` is the PR unit to `dev`**.
+  **`epic` is the PR unit** — to `dev` at prototype/small, or to a `release/<NNN>` branch at medium+
+  (see the revised "Tier scaling" below).
 - **Numbered branches matching roadmap cards:** `feat/<NNN>-<slug>`, `epic/<NNN>-<slug>`,
   `release/<NNN>-<slug>` (3 digits; FEAT-006 → `feat/006-…`). Namespace = type (greppable), `<slug>`
   unscoped.
-- **Tier scaling:** prototype/small `feat→dev`; medium `feat→epic (local) → dev (PR)`; large adds a
-  `release/<NNN>` stabilisation branch (`release→dev→main`).
+- **Tier scaling (revised 2026-06-06 — supersedes the original line):** **every** tier merges
+  `feat→epic` **locally** and the epic is the PR unit; the `release/` boundary sits at **medium**, not
+  large. **prototype/small** → epic PRs to `dev` (release = `dev→main` tag, no `release/` branch);
+  **medium/large** → epic PRs to a `release/<NNN>` branch (`release→dev→main`). *(Original, now wrong:
+  "prototype/small `feat→dev`; medium `feat→epic→dev PR`; only large adds `release/`." The conflict —
+  small had no epic branch, medium had no `release/` — was flagged by another session updating a small
+  project; the corrected table moved the `release/` floor up to medium and gave every tier the epic
+  branch.)*
 - **CI/CD split:** gates trigger off **refs**; release version/changelog come from **Conventional
   Commits** (not branch names) → free to use our own names. Add a `commitlint` gate; keep
   `feat:`/`fix:` commits readable across merges (preserve or Conventional squash titles).
@@ -112,7 +119,14 @@ the convention is project-agnostic, so it went straight into the template **and*
 ### Carry-back note
 Already applied to `playbook-base.md` §16.2 (rewritten "Git Flow (tiered)"), §16.3 (PR-unit-by-tier
 note), §16.4 (epic/milestone-close trigger) in **both** the template and this project's copy — **no
-further fold needed at close** for this item.
+further fold needed at close** for this item. The **2026-06-06 revision** (every tier gets the epic
+branch; `release/` floor moved to medium) was likewise applied to **both** the template and this copy.
+
+> **ddd-dod resolution (2026-06-06):** rather than adopt the new medium `release/<NNN>` flow,
+> **ddd-dod was reclassified medium → small** — small PRs each epic straight to `dev` (no `release/`),
+> which *is* the in-flight `epic→dev` policy, so no grandfathering is needed. The package layout still
+> exceeds small's minimums (medium+ infra-free split, ADR-0014) **by design** — tier is a floor, not a
+> ceiling. Recorded in the root `AGENTS.md` (Methodology + Branching) and `sad.md`.
 
 ---
 
