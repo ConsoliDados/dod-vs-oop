@@ -1,0 +1,16 @@
+{
+  "name": "@ddd-dod/bench-parallelism",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Phase-3 parallelism axis harness — ddd-dod inline vs worker-pool (scaffold; stub until EPIC-003)",
+  "scripts": {
+    "inline": "bun run server-inline.ts",
+    "pool": "bun run server-pool.ts"
+  },
+  "dependencies": {
+    "@ddd-dod/platform": "workspace:*",
+    "@ddd-dod/types": "workspace:*",
+    "elysia": "^1.4.28"
+  }
+}

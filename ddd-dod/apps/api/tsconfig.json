@@ -1,0 +1,4 @@
+{
+  "extends": "../../tsconfig.json",
+  "include": ["src/**/*", "tests/**/*", "../../packages/types/src/globals-types.d.ts"]
+}

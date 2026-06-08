@@ -25,19 +25,37 @@ and **DB I/O**. So we run a 2×2 factorial — `{stack} × {persistence}` — an
 
 ## Real-world topology (benches 1 & 3)
 
-Resource-constrained, modeled on the Rinha de Backend 2023 q3 budget (docker-compose limits):
+Rinha-inspired (reverse proxy + **2 instances** + DB on a tight budget), run at **two
+hardware tiers** so we see each stack both **suffer under a hard cap** and **breathe**. Each
+side is 4 containers (nginx + 2 api + postgres); the limit is the **whole side's** budget,
+split across its services (docker `cpus`/`mem_limit`):
 
-| Service | CPU | Memory |
-|---------|-----|--------|
-| nginx (load balancer) | 0.25 | 0.5 GB |
-| api1 | 0.25 | 0.5 GB |
-| api2 | 0.25 | 0.5 GB |
-| postgres | 0.75 | 1.5 GB |
-| **total** | **1.5** | **3 GB** |
+| Service | Tier A — austere | Tier B — roomy |
+|---------|------------------|----------------|
+| nginx (LB) | 0.15 CPU / 32 MB | 0.30 CPU / 96 MB |
+| api ×2 | 0.45 CPU / 160 MB each | 1.0 CPU / 512 MB each |
+| postgres | 0.45 CPU / 196 MB | 0.70 CPU / 384 MB |
+| **total / side** | **1.5 CPU / 548 MB** | **3.0 CPU / 1.5 GB** |
 
-Two API instances behind a proxy on a tight CPU/memory budget — the conditions where
-app-layer efficiency (allocations, GC pressure, object-graph traversal) actually moves
-throughput, which is exactly where the architectural difference should show.
+- **Tier A** = survival under a hard cap. The lean DOD/Bun side fits (~380 MB); the verbose
+  OOP/Nest side rides the **OOM edge** (~520 MB+) — part of the finding. An OOM-killed side
+  is recorded as a survival failure, not a throughput number.
+- **Tier B** = clean throughput, both stable — the comparable req/s come from here.
+
+**Core pinning (hybrid CPU, e.g. i9-14900HX: P-cores `cpuset 0-15`, E-cores `16-31`):** the
+measured **api** containers pin to **P-cores**, identical on both sides; **postgres + nginx +
+the k6 load generator** pin to **E-cores** so infra and the attacker never steal a P-core
+from the measured code. **One side at a time (sequential)** — each side gets the full P-core
+budget, zero cross-side contention.
+
+**`nginx`** is the reverse proxy / LB (tiny footprint, no GC → predictable tail latency; not
+Traefik). **Proxy is identical on both sides** — not the variable.
+
+**Docker networking — `network_mode: host`, never bridge.** Bridge adds NAT + the userland
+proxy + an extra hop that inflates latency and caps throughput — you'd be measuring Docker,
+not the app. Host networking puts k6 → nginx → api → postgres on the host net, so the numbers
+are the stack's. (Trade-off: no inter-container port isolation — fine for a benchmark rig;
+ports just must not collide.) **Identical on both sides**, so it's not a confounder.
 
 Benches 2 & 4 drop the topology and run in-process against sqlite `:memory:` (no DB I/O),
 for the isolated/controlled numbers.
@@ -58,8 +76,10 @@ for the isolated/controlled numbers.
 ## Persistence
 
 - **classic** — TypeORM (multi-dialect: Postgres for benches 1/3, sqlite for 2/4).
-- **modern (Elysia, both sides in 3 & 4)** — Drizzle with an env-var flag selecting the
-  `pg` or `sqlite` dialect at runtime (verbose dual schema, accepted).
+- **dod / modern (Elysia)** — Drizzle behind a repository **port**, with **two concrete
+  adapters** (sqlite + pg) per bounded context; the composition root picks the driver from
+  config (`DATABASE_URL`). **Not** an env-flag dual-schema — ports/adapters keep the domain
+  driver-agnostic (ADR-0012 in `ddd-dod`; the driver is chosen in the dirty layer).
 - `sqlite :memory:` is also the integration/e2e **test** DB throughout, independent of these benchmarks.
 
 ## Harness components
@@ -75,6 +95,21 @@ The "test rig" wrapped around the apps (built in this phase):
 5. **Conformance check** — byte-identical JSON gate.
 6. **Metrics + reporting** — aggregation into the results table below.
 7. **Orchestration** — scripts to spin up, warm up, run each of the 4 configs, tear down.
+
+## Extra — parallelism (dod vs dod + thread-workers)
+
+Outside the 2×2 (which compares implementations): a **within-`ddd-dod`** comparison of the
+CPU-bound paths (statement generation, reconciliation) **baseline vs offloaded to a Bun
+worker-pool** — each worker bootstraps its own DI container (share-nothing). Measures what
+multicore parallelism buys the DOD implementation: throughput / tail-latency / scaling
+across N workers, with vs without workers.
+
+`ddd-classic` is **not** run with workers here — that is the finding. The post pairs the
+number with a **qualitative code-snippet** comparison of the worker boundary: DOD ships
+plain data (`pool.run(data)`, TypedArrays transfer zero-copy) while OOP must rehydrate
+entities, re-bootstrap a Nest context per worker, and cannot send behavior across the
+thread boundary. Infra already built: the `ddd-dod` `platform` worker-pool
+(`createWorkerPool`/`serveWorker`) + the merged worker+DI demo (its seed).
 
 ## Results
 

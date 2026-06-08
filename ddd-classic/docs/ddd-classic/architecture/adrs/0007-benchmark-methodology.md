@@ -23,15 +23,16 @@ Run **four benchmarks** as a 2×2 factorial — `{stack} × {persistence}` — s
 
 Decomposition by comparing cells: **1↔2** = weight of DB I/O; **1↔3** (or **2↔4**) = weight of the stack; **bench 4** = the cleanest architectural delta.
 
-**Constrained topology (benches 1 & 3)** — the Rinha de Backend 2023 q3 budget, via docker-compose resource limits:
+**Constrained topology (benches 1 & 3)** — Rinha-inspired (reverse proxy + 2 instances + DB on a tight budget), at **two hardware tiers**; the limit is the **whole side's** budget, split across its services (docker `cpus`/`mem_limit`):
 
-| Service | CPU | Memory |
-|---------|-----|--------|
-| nginx (load balancer) | 0.25 | 0.5 GB |
-| api1 | 0.25 | 0.5 GB |
-| api2 | 0.25 | 0.5 GB |
-| postgres | 0.75 | 1.5 GB |
-| **total** | **1.5** | **3 GB** |
+| Service | Tier A — austere | Tier B — roomy |
+|---------|------------------|----------------|
+| nginx (LB) | 0.15 CPU / 32 MB | 0.30 CPU / 96 MB |
+| api ×2 | 0.45 CPU / 160 MB each | 1.0 CPU / 512 MB each |
+| postgres | 0.45 CPU / 196 MB | 0.70 CPU / 384 MB |
+| **total / side** | **1.5 CPU / 548 MB** | **3.0 CPU / 1.5 GB** |
+
+Tier A = survival under a hard cap (lean DOD/Bun fits; verbose OOP/Nest rides the OOM edge — part of the finding); Tier B = clean throughput. **Core pinning** (hybrid CPU): measured **api** on P-cores (both sides identical), **postgres + nginx + k6** on E-cores; **one side at a time** (sequential, no cross-side contention). **Docker `network_mode: host`, never bridge** — bridge's NAT + userland proxy + extra hop inflate latency and cap throughput (you'd measure Docker, not the app); identical on both sides, so not a confounder.
 
 **Persistence portability:** the classic stack uses **TypeORM** (multi-dialect). The modern stack (Elysia, both sides in benches 3 & 4) uses **Drizzle** with an **env-var flag** selecting `pg-core` vs `sqlite-core` at runtime — a verbose dual-dialect schema, accepted as the cost of portability. `sqlite :memory:` also remains the integration/e2e **test** database, always, independent of the benchmarks.
 
@@ -55,7 +56,7 @@ Decomposition by comparing cells: **1↔2** = weight of DB I/O; **1↔3** (or **
 ## Open items
 
 - Make the classic TypeORM entities portable Postgres↔sqlite (`datetime` / `simple-json` / `bigint` / `PrimaryGeneratedColumn` differ per dialect) — handle in the harness phase.
-- The dod side currently uses an in-memory `Map` repository — it needs real Drizzle persistence for the benchmarks.
+- ~~The dod side uses an in-memory `Map` repository — needs real Drizzle.~~ **Done** — `ddd-dod` FEAT-005 ships a driver-flexible Drizzle connection (sqlite `:memory:` + Postgres). Note: `ddd-dod` adopts **ports/adapters** (two concrete adapters, `ddd-dod` ADR-0012) instead of this ADR's env-flag dual-schema; the env-flag remains the documented option for `classic-modern` (TBD).
 
 ## References
 
