@@ -289,10 +289,11 @@ Multi-line commit messages preferred when the change has any subtlety. The body 
 
 - `main` is release-tagged, deployable, and always builds. After bootstrap it receives `dev` per release (or a `hotfix/<slug>` in emergencies).
 - `dev` is the integration target.
-- **Branch naming:** `feat/<NNN>-<slug>`, `epic/<NNN>-<slug>`, `release/<NNN>-<slug>` — `<NNN>` is the roadmap card number, 3 digits (FEAT-006 → `feat/006-…`, EPIC-002 → `epic/002-…`); `<slug>` is unscoped (no project prefix). The namespace **is** the type, so `git branch --list 'epic/*'` works.
+- **Branch naming.** `epic/<NNN>-<slug>` and `release/<NNN>-<slug>` use their **own card number** (the tech-lead assigns the milestone + epic numbers). **A feature inherits its EPIC's number** — `feat/<EPIC-NNN>-<slug>` — where the slug is the clean-arch layer/concern (`domain`/`application`/`infra`/`http`) or the functionality. So epic `002-active-foundation` → `feat/002-config`, `feat/002-logger`, … (all share `002`). The feature number is **not** a per-feature counter: reusing the epic's number means parallel devs across **different** epics never collide even when slugs repeat (`feat/003-application` vs `feat/004-application`), and execution **order/deps live in the epic card** (§22.1), not the filename. 3 digits; `<slug>` unscoped. The namespace **is** the type, so `git branch --list 'epic/*'` works. *(ddd-dod's EPIC-002 features ship as `001-config`…`006-http-app` — they **predate** this convention and are grandfathered; not re-numbered.)*
+- **Spec branches (the doc phase, temporary).** `docs/plan-milestone-<NNN>-<slug>` (tech-lead authors the milestone + epic cards) and `docs/plan-epic-<NNN>-<slug>` (dev authors the SDD(s) + FRDs + feature cards). They are **merged into their target and deleted** — the epic branch is cut **from** `docs/plan-epic-…` once the spec is approved. See the methodology's "genesis → code" flow (§4.0).
 - **The flow scales by tier (§21).** **Every tier** merges features **locally** into an `epic/<NNN>-<slug>` branch (the cohesive batch, no per-feature push-gate); the **epic is the PR unit**. Tiers differ only in **where the epic PRs and how a release ships**:
-  - **prototype / small** — `feat/<NNN>` → `epic/<NNN>` (local merge) → **epic PRs to `dev`**. A release is just the `dev → main` tag — **no `release/` branch**.
-  - **medium / large** — `feat/<NNN>` → `epic/<NNN>` (local merge) → **epic PRs to a `release/<NNN>-<slug>` branch** (stabilise the milestone off `dev`); then `release → dev → main`.
+  - **prototype / small** — `feat/<EPIC-NNN>` → `epic/<NNN>` (local merge; feature shares the epic's number) → **epic PRs to `dev`**. A release is just the `dev → main` tag — **no `release/` branch**.
+  - **medium / large** — `feat/<EPIC-NNN>` → `epic/<NNN>` (local merge; feature shares the epic's number) → **epic PRs to a `release/<NNN>-<slug>` branch** (stabilise the milestone off `dev`); then `release → dev → main`.
 - **`milestone` is a planning grouping + a release marker (tag/label), never a branch** — except the **medium+** `release/<NNN>` stabilisation branch that carries a milestone's epics to `main` (§16.4). A release ships a milestone's epics.
 - **CI/CD split (important):** *what gates run* triggers off **refs** (PR→`dev`, push→`main`, `release/*`) — these are **your** refs, so you are **not** bound to gitflow's `feature/`/`release/`/`hotfix/` names. *Release semantics* (version bump + changelog) are computed from **Conventional Commits** (§16.1), not branch names — so keep meaningful `feat:`/`fix:` commits readable on `dev`/`main` (preserve them on merge, or use a Conventional squash title) and enforce them with a `commitlint` gate.
 
@@ -304,10 +305,10 @@ Once the bootstrap window closes (§17.2), every feature follows this loop. **Th
 
 > **PR unit by tier (§16.2).** Every tier merges features **locally** into the **`epic/<NNN>-<slug>`** branch (no per-feature push-gate); the **epic is the PR unit**, and the loop below runs once at the **epic → target** boundary. The target is `dev` at prototype/small, or the milestone's **`release/<NNN>`** branch at medium+ (read the epic branch + its target for the names in the steps).
 
-1. Sync and branch: `git checkout dev && git pull && git checkout -b feat/<name>`.
+1. Branch the feature **off its epic**: `git checkout epic/<NNN>-<slug> && git pull && git checkout -b feat/<NNN>-<slug>` — the feature carries the **epic's** number (§16.2). *(At prototype — no epic branch — cut it off `dev`.)*
 2. Implement, commit (Conventional Commits per §16.1). Multiple small commits are fine — they will squash on merge.
-3. Push the branch: `git push -u origin feat/<name>`. **Do not open the PR yet.**
-4. **Pause for human validation.** The human pulls the branch locally, reviews code + docs (sprint card RPA, ADRs, AGENTS.md updates), runs the feature, and either requests changes or approves.
+3. Push the branch only if you need a remote (CI, hand-off): `git push -u origin feat/<NNN>-<slug>`. **Do not open the PR yet.** Default is a **local** merge into the epic (§16.2).
+4. **Pause for human validation.** The human pulls the branch locally, reviews code + docs (the feature card's RPA trail, ADRs, AGENTS.md updates), runs the feature, and either requests changes or approves (for agent work: the dev tests + approves this "internal PR" before the merge).
 5. Once validated, open the PR: `gh pr create --base dev --title "feat(<scope>): ..." --body "..."`.
 6. CI must pass green (§17.4). Address review comments; do not force-push without coordinating.
 7. Squash-merge to `dev`.
@@ -315,14 +316,16 @@ Once the bootstrap window closes (§17.2), every feature follows this loop. **Th
 
 The push-before-PR step is intentional: it gives the human a real branch to inspect before any GitHub state (PR comments, reviewers, CI minutes) is created.
 
+**Remote cleanup (non-negotiable).** If any `feat/<EPIC-NNN>-*` branches were pushed, the dev **deletes them from the remote** *before* the `epic → dev` (or `→ release/`) PR is approved — the epic branch carries the merged work, so stray feature branches must not linger (`git push origin --delete feat/<NNN>-<slug>`). The reviewer holds approval until the remote is clean.
+
 ### 16.4 Release on epic / milestone close
 
 Releases are **triggered by closure**, not by sprint boundaries or a calendar: at prototype/small, by **epic** closure (a direct `dev → main` tag); at **medium+**, by **milestone** closure — its epics land on the milestone's **`release/<NNN>`** branch (§16.2), which then flows `release → dev → main`. The milestone is the release grouping. (At medium+, substitute the `release/<NNN>` branch for `dev` as the merge **source** in the steps below — `release → main`, then fast-forward `dev`.)
 
-When an epic moves to `status: done` (all `exits_with` items checked — see `../epics/`):
+When an epic moves to `status: done` (all `exits_with` items checked — see `../roadmap/02-epics/`):
 
 1. Verify CI is green on the `dev` HEAD.
-2. Verify the epic's `exits_with` items are all checked in `../epics/<id>-<slug>.md`.
+2. Verify the epic's `exits_with` items are all checked in `../roadmap/02-epics/<id>-<slug>.md`.
 3. Update `CHANGELOG.md` at the repo root with one entry per epic close (auto-generated from squash-merge messages on `dev` since the last tag is fine; manual edits to clarify are encouraged).
 4. Merge to `main` and tag:
 
@@ -533,6 +536,7 @@ Consequences:
 - **Identity is the slug** — `sdds/sdd-<slug>.md`, `frds/frd-<slug>.md`; there is **no** `SDD-NNN`/`FRD-NNN` number. Refs point by slug. A sequential counter is the thing parallel contributors collide on (two devs grab the same "next" number in a PR); slug identity removes that coordination point. The management layer (cards) keeps its numbers because a central tool (Jira/GH) hands those out.
 - **FRDs are a list inside the SDD by default** (§8 "Functionalities"); splitting one into its own `frd-<slug>.md` is the medium+ §22 option, not the norm — FRDs rarely grow enough to leave the SDD.
 - **Large-tier evolution — SDD as a folder of sub-SDDs.** When a bounded context **subdivides**, its SDD becomes a **folder** hosting nested sub-SDDs: `sdds/sdd-<context>/{sdd-<context>.md (parent overview) + sdd-<sub>.md …}`, all slug-named (still merge-safe). One SDD can thus contain several SDDs. FRDs do **not** get their own folder — they remain "Functionalities" lists inside whichever SDD owns them.
+- **FRD sizing → the feature fits ~1–2 days.** An FRD is one **functionality**, scoped so its feature builds in **~1 day (max 2)**. The clean-arch layers (`domain` · `application` · `infra` · `http`) are the **Tasks *inside*** that feature, **not** separate FRDs/features. If a functionality won't fit in ~2 days, **split it into more FRDs** (each still **1:1** with a feature) — by sub-functionality, or by carving a foundational `frd-<aggregate>-model` for a heavy shared model. Never stretch a feature past ~2 days, and **never map one FRD to several features** — that's the signal the FRD is too big.
 
 ## 23. Feature placement modes
 
@@ -691,7 +695,7 @@ This section serves two audiences:
 |---|---|---|---|---|---|
 | `backlog/<id>-<slug>.md` (card in **Initial/Refining/Ready**) | Issue in Backlog state | Issue in Backlog | Issue + label `backlog` + Project column | Task in Backlog section | Database row |
 | `roadmap/<id>-<slug>.md` (card in **Initial/InProgress/Done**) | Issue in Committed/Active state | Issue in Up Next/In Progress | Issue in Project column | Task in Active section | Database row |
-| `roadmap/milestones/<slug>.md` (Milestone — delivery grouping) | Initiative | Project / Initiative | Milestone | Portfolio | Database with sub-pages |
+| `roadmap/01-milestones/<slug>.md` (Milestone — delivery grouping) | Initiative | Project / Initiative | Milestone | Portfolio | Database with sub-pages |
 | `epics/<id>-<slug>(.md\|/)` (Epic — references one SDD) | Epic | Project | Milestone | Project | Database with sub-pages |
 | `sprints/sprint-NN/` | Sprint (Scrum board) | Cycle | Iteration | Section / time-based group | Database view |
 | `architecture/frds/frd-<slug>.md` ⇄ feature `README.md` (FRD = one Feature, 1:1) | Story | Issue (child of project) | Issue linked to milestone | Task | Sub-page |

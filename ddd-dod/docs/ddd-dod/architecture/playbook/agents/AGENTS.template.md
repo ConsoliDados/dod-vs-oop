@@ -40,7 +40,7 @@ This project follows the conventions in `docs/ddd-dod/architecture/playbook/`. T
 - **Active artefacts** (check what's currently in use; cross-reference promotion triggers in playbook §22):
   - [ ] `architecture/sdds/` — flat files `sdd-<slug>.md`, the bible of a coherent domain (an Epic references one via `sdd:`). See promotion trigger (3+ ADRs on a context, etc.)
   - [ ] `architecture/frds/` (medium+) — flat files `frd-<slug>.md`, per-functionality "what" (child of an SDD, 1:1 with a Feature). Absorbed into the SDD at prototype/small.
-  - [ ] `roadmap/milestones/` — delivery groupings (Milestone : SDD = 1 : N) + `roadmap/archived/` for delivered work.
+  - [ ] `roadmap/01-milestones/` — delivery groupings (Milestone : SDD = 1 : N) + `roadmap/archived/` for delivered work.
   - [ ] `architecture/data-model.md` — see promotion trigger (versioned migrations, etc.)
   - [ ] `architecture/threat-model.md` — required if untrusted input or sensitive data
   - [ ] `dev-pipeline/` — required when 3+ contributors edit shared docs

@@ -145,6 +145,21 @@ By the end of Day 1 you should be able to answer:
 
 There are **no** persisted `research.md`/`plan.md`/`act.md` files by default — everything durable already has a home: a **durable decision → ADR**; the design → the SDD/FRD itself; the task breakdown → the FRD's Tasks, pulled into the feature README checklist (transient); the provenance → git history. **Rare-audit exception:** when it genuinely matters to record *what* the AI evaluated and *how* (audit / sensitive handoff), promote that one node to a folder and keep a single `research.md` (plan folded inside) next to the doc. Default = no research file.
 
+### 4.0 The kickoff — genesis → code (per milestone/epic)
+
+Before the per-feature loop (§4.1+), a milestone/epic goes from the architecture to ready-to-build. Assumes **SRS + SAD already valid** (at least the essentials — both stay WIP forever) and the **bootstrap milestone shipped** (the runtime foundation).
+
+**Roles.** The **tech-lead** owns the milestone + epic *cards* (and their numbers); the **dev** extracts the SDD(s), FRDs, and feature cards.
+
+1. **Analyse the SAD** — what comes next: which contexts/boundaries this milestone touches.
+2. **Size the milestone** — 1:1 with **one epic**, or **several epics/SDDs**? (Milestone : SDD = 1:N; sometimes one big SDD *is* a milestone.)
+3. **Milestone/epic cards (tech-lead).** Branch `docs/plan-milestone-<NNN>-<slug>`; commit the milestone card + the epic card(s) (the basics, to receive detail). PR → `dev`.
+4. **Spec (dev).** Pull `dev`; branch `docs/plan-epic-<NNN>-<slug>`. Author the **SDD(s) + FRDs** (RPA mental, §4.1) and the **feature cards** — each feature **inherits the epic's number** (§16.2), and the **order/deps live in the epic card**.
+5. **Approve (gate).** If the spec **"leaks" the context** (others depend on it): open a temporary PR `docs/plan-epic-… → dev`, approve, everyone pulls `dev`. If it doesn't leak: cut **`epic/<NNN>-<slug>` *from* `docs/plan-epic-…`** and **delete** the doc branch.
+6. **Implement** — the per-feature loop (§4.1–§4.8): `feat/<EPIC-NNN>-<slug>` off the epic → merge locally → (remote cleanup before the epic PR). Features done → **PR `epic → dev`** (or `→ release/` at medium+).
+
+> **FRD = the feature.** SDD : FRD = 1:N (one FRD per **functionality** of the context); FRD : Feature = 1:1. An FRD is sized so its feature fits **~1–2 days**; the clean-arch layers (`domain`/`application`/`infra`/`http`) are its **Tasks**, not separate features (§22.1).
+
 ### 4.1 Orient + author the spec (RPA in your head → one artifact)
 
 1. Confirm the card is in **Initial** on the roadmap kanban. Move it to **In Progress**. The card belongs to an **Epic** (which references one **SDD** — a domain) and is realized by one **Feature** (1:1 with one **FRD** — a functionality).
@@ -158,7 +173,7 @@ A **Feature** is the realization of one **FRD** (1:1). Its build folder holds a 
 
 ### 4.3 Build the feature (the Act is the code)
 
-1. Branch: `git checkout dev && git pull && git checkout -b feat/<slug>`.
+1. Branch the feature **off its epic**: `git checkout epic/<NNN>-<slug> && git checkout -b feat/<NNN>-<slug>` — the feature carries the **epic's** number (§16.2). *(Prototype, no epic → off `dev`.)*
 2. The feature `README.md` is the **live tracker**: pull the FRD's Tasks (handler, aggregate method, endpoint, tests) in as a `- [ ]` checklist, check them off as work happens, capture surprises and punted items inline (and *why*).
 3. Each task maps to a specific file/operation in the SDD and an acceptance criterion from the FRD.
 4. If a non-trivial decision is locked in mid-build, write the **ADR** now. No `research.md`/`plan.md`/`act.md` — the code is the Act and the README is the trail (rare-audit exception aside, §4 intro).
@@ -180,7 +195,7 @@ At feature end, write the closing retro block at the bottom of the feature `READ
 
 - Conventional Commits per `playbook-base.md` §16.1: `feat(<scope>): ...`, `fix(<scope>): ...`.
 - Multiple small commits are fine; they will squash on merge.
-- `git push -u origin feat/<slug>`. **Do not open the PR yet.**
+- Default is a **local** merge into the epic; push only if a remote is needed (`git push -u origin feat/<NNN>-<slug>`) — then **delete it from the remote before the epic→dev PR** (§16.3). **Do not open a feature PR.**
 
 ### 4.6 Pause for human validation
 
